@@ -12,7 +12,9 @@
 #include <json/value.h>
 
 #include "drogon_onebot/error.hpp"
+#include "drogon_onebot/types/account.hpp"
 #include "drogon_onebot/types/action.hpp"
+#include "drogon_onebot/types/message.hpp"
 
 namespace drogon_onebot {
 
@@ -33,10 +35,17 @@ namespace drogon_onebot {
     /**
      * @brief Client for the HTTP API of one OneBot v11 implementation.
      *
+     * Methods mirror OneBot v11 action names: `SendPrivateMsg()` calls `send_private_msg`.
+     *
      * @code
-     * auto const info{ co_await bot.CallAction({ .action = "get_login_info" }) };
-     * if (info) {
-     *     std::println("user_id: {}", (*info)["user_id"].asInt64());
+     * Json::Value text{ Json::objectValue };
+     * text["text"] = "Hello!";
+     * auto const sent{ co_await bot.SendGroupMsg({
+     *     .group_id = 123456,
+     *     .message = { { .type = "text", .data = text } },
+     * }) };
+     * if (sent) {
+     *     std::println("message_id: {}", sent->message_id);
      * }
      * @endcode
      *
@@ -64,6 +73,33 @@ namespace drogon_onebot {
         [[nodiscard]] auto CallAction(
             CallActionParams params
         ) const -> drogon::Task<Result<Json::Value>>;
+
+        /**
+         * @brief Call `get_login_info`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the logged-in account, or why the action failed.
+         */
+        [[nodiscard]] auto GetLoginInfo(
+            GetLoginInfoParams params = {}
+        ) const -> drogon::Task<Result<LoginInfo>>;
+
+        /**
+         * @brief Call `send_private_msg`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the sent message's ID, or why the action failed.
+         */
+        [[nodiscard]] auto SendPrivateMsg(
+            SendPrivateMsgParams params
+        ) const -> drogon::Task<Result<SentMessage>>;
+
+        /**
+         * @brief Call `send_group_msg`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the sent message's ID, or why the action failed.
+         */
+        [[nodiscard]] auto SendGroupMsg(
+            SendGroupMsgParams params
+        ) const -> drogon::Task<Result<SentMessage>>;
     };
 
     /**
