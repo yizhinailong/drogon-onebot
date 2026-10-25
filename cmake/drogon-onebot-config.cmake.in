@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Drogon CONFIG)
+
+# Drogon's FindFilesystem.cmake restores an unset CMAKE_CXX_STANDARD as "",
+# which target_compile_features rejects as an invalid CXX_STANDARD.
+if(CMAKE_CXX_STANDARD STREQUAL "")
+    unset(CMAKE_CXX_STANDARD)
+endif()
+
+include(${CMAKE_CURRENT_LIST_DIR}/drogon-onebot-targets.cmake)
+
+check_required_components(drogon-onebot)

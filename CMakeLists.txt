@@ -6,6 +6,11 @@ project(
     VERSION 0.1.0
 )
 
+option(DROGON_ONEBOT_INSTALL "Generate install and package config rules" ${PROJECT_IS_TOP_LEVEL})
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 find_package(Drogon CONFIG REQUIRED)
 
 # Drogon's FindFilesystem.cmake restores an unset CMAKE_CXX_STANDARD as "",
@@ -47,3 +52,37 @@ target_link_libraries(
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
+
+if(DROGON_ONEBOT_INSTALL)
+    set(PACKAGE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+
+    install(
+        TARGETS ${PROJECT_NAME}
+        EXPORT ${PROJECT_NAME}-targets
+        FILE_SET HEADERS
+    )
+
+    install(
+        EXPORT ${PROJECT_NAME}-targets
+        NAMESPACE ${PROJECT_NAME}::
+        DESTINATION ${PACKAGE_INSTALL_DIR}
+    )
+
+    configure_package_config_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+        INSTALL_DESTINATION ${PACKAGE_INSTALL_DIR}
+    )
+
+    write_basic_package_version_file(
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+        COMPATIBILITY SameMinorVersion
+    )
+
+    install(
+        FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+        DESTINATION ${PACKAGE_INSTALL_DIR}
+    )
+endif()
