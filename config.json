@@ -1,0 +1,27 @@
+{
+  "app": {
+    "number_of_threads": 1,
+    "document_root": "/tmp/drogon-onebot-example",
+    "upload_path": "uploads",
+    "log": {
+      "log_path": "",
+      "logfile_base_name": "",
+      "log_size_limit": 100000000,
+      "log_level": "DEBUG"
+    }
+  },
+  "listeners": [
+    {
+      "address": "127.0.0.1",
+      "port": 18080
+    }
+  ],
+  "plugins": [
+    {
+      "name": "drogon_onebot::OneBotClient",
+      "config": {
+        "base_url": "http://127.0.0.1:18080"
+      }
+    }
+  ]
+}
