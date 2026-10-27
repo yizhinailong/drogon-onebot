@@ -1,8 +1,10 @@
 # 文档索引
 
-[项目首页](../README.md)
+[English](../en/README.md) · 简体中文
 
-文档统一使用简体中文，保留 API 标识符、命令、协议值和真实终端输出。代码块未包含完整 `main()` 时视为用法片段，需要在 drogon 初始化插件之后执行，例如在 beginning advice 或请求处理函数里。
+[项目首页](../../README.zh-CN.md)
+
+本目录是简体中文版，英文版位于 `docs/en/`，两边的文件一一对应。文档保留 API 标识符、命令、协议值和真实终端输出。代码块未包含完整 `main()` 时视为用法片段，需要在 drogon 初始化插件之后执行，例如在 beginning advice 或请求处理函数里。
 
 ## 使用
 
@@ -18,4 +20,4 @@ API 参考由 Doxygen 从 `include/` 和 `src/` 的注释生成，见 [Doxygen �
 | --- | --- |
 | [Doxygen 使用说明](doxygen.md) | 本地生成、GitHub Pages 自动发布、配置与警告 |
 | [版本标签与 Linux CI](ci.md) | 版本变更自动打标签、Linux 构建与测试 |
-| [仓库规范](../AGENTS.md) | 设计决策、构建、测试与代码风格（英文） |
+| [仓库规范](../../AGENTS.md) | 设计决策、构建、测试与代码风格（英文） |

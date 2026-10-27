@@ -8,6 +8,7 @@ on:
       - 'src/**'
       - 'docs/**'
       - 'README.md'
+      - 'README.zh-CN.md'
       - 'AGENTS.md'
       - 'Doxyfile'
       - '.github/workflows/docs.yml'

@@ -13,7 +13,7 @@ Drogon plugin library for the OneBot v11 protocol, consumed by other Drogon apps
   - `event_path` (e.g. `/onebot/event`) is optional and must start with `/`; without it no event route is registered.
   - `access_token_env` and `secret_env` are optional, and each names an environment variable. Secrets are never read from config.json. The first holds the HTTP API access token (sent as `Authorization: Bearer`); the second holds the secret that signs posted events.
 
-  `initAndStart` throws `std::invalid_argument` if `base_url` is empty, if `event_path` is invalid, or if a named variable is unset or empty. Add new keys to `OneBotConfig`, `initAndStart`, the class doc comment, `config.json`, and the table in `docs/drogon-plugin.md`.
+  `initAndStart` throws `std::invalid_argument` if `base_url` is empty, if `event_path` is invalid, or if a named variable is unset or empty. Add new keys to `OneBotConfig`, `initAndStart`, the class doc comment, `config.json`, and the tables in `docs/*/drogon-plugin.md`.
 - `OneBotClient::NewOneBotClient()` returns a `OneBot` by value. `OneBot` is a value handle whose only state is one `std::shared_ptr<details::Transport>`, so copies are cheap and go into coroutines by value. Its methods are coroutines returning `drogon::Task<Result<T>>` (`std::expected<T, Error>`, in `error.hpp`); there is no sync API.
 - `OneBot` methods mirror OneBot v11 action names (`SendPrivateMsg` calls `send_private_msg`), as the common OneBot SDKs (NoneBot2, aiocqhttp) do, so there are no API group members. Request and response structs live in `types/`, one header per category; the method bodies live in `src/actions/<category>.cpp`. `CallAction(CallActionParams)` reaches any action, including implementation extensions, and yields the envelope's raw `data`.
 - The typed actions `GetLoginInfo`, `SendPrivateMsg`, and `SendGroupMsg` call `details::Transport::Call` and read their result from `data` with the helpers in `src/details/json.hpp`. A `data` without the expected field (including the null `data` of an `async` reply) is `ResponseValidation`, with `data` as the error body. Integers are read with `details::read_integer<T>`, which accepts JSON numbers and decimal strings, because NapCat sends some IDs as strings.
@@ -97,7 +97,7 @@ The tests use drogon's own framework, `drogon/drogon_test.h`, which is installed
 
 ## CI, version tags, and docs
 
-The workflows follow `yizhinailong/mcr` (pinned action SHAs with the version in a comment, checksum-verified tool downloads, logic inline in the YAML). `docs/ci.md` and `docs/doxygen.md` describe them for users; keep those pages in sync.
+The workflows follow `yizhinailong/mcr` (pinned action SHAs with the version in a comment, checksum-verified tool downloads, logic inline in the YAML). `docs/*/ci.md` and `docs/*/doxygen.md` describe them for users; keep those pages in sync.
 
 - `.github/workflows/linux-ci.yml` (Linux CI) runs on every branch push, PR, manual dispatch, and on version tags. It runs a `debug` and a `release` matrix leg on `ubuntu-24.04`.
   - Tools: CMake 4.2.3 (Kitware tarball, SHA-256 pinned) and LLVM 21 from apt.llvm.org (signing key fingerprint checked). `/usr/lib/llvm-21/bin` goes on `PATH`, so the presets' plain `clang++` resolves to LLVM 21.
@@ -118,14 +118,16 @@ The workflows follow `yizhinailong/mcr` (pinned action SHAs with the version in 
 
 ## Documentation
 
-- `README.md` (the Doxygen main page) and `docs/*.md` are in Simplified Chinese with identifiers in English; `AGENTS.md` stays in English. Add new pages to `docs/README.md`.
-- `Doxyfile` is the Doxygen 1.18.0 template, with the values that differ from it listed in `docs/doxygen.md` (`doxygen -x Doxyfile` prints them).
-  - `INPUT` is `include src README.md docs AGENTS.md` with `*.hpp *.cpp *.md`.
+- `README.md` is always the English README. GitHub shows it by default, and it is the Doxygen main page. `README.zh-CN.md` is its Simplified Chinese version, with the same sections, examples, and links (anchor ids in each file's language). Each links to the other on the line below its title. Change both together, and keep any new translation out of `README.md`.
+- The user guides live in two mirrored directories, `docs/en/` (English) and `docs/zh-CN/` (Simplified Chinese), with identifiers in English in both; `docs/*/<page>` below means both copies. Every page exists in both with the same file name, and each links to its counterpart on the line below its title. Project-home links go to `../../README.md` from `docs/en/` and to `../../README.zh-CN.md` from `docs/zh-CN/`. Add a new page to both directories and both `README.md` indexes, and change the two copies together. `AGENTS.md` stays in English.
+- `Doxyfile` is the Doxygen 1.18.0 template, with the values that differ from it listed in `docs/*/doxygen.md` (`doxygen -x Doxyfile` prints them).
+  - `INPUT` is `include src README.md README.zh-CN.md docs AGENTS.md` with `*.hpp *.cpp *.md`. A top-level Markdown file added to `INPUT` also goes into the `paths` of `docs.yml` and the lists in `docs/*/doxygen.md`.
   - `STRIP_FROM_INC_PATH = include` makes class pages show `#include <drogon_onebot/...>`.
+  - `OUTPUT_LANGUAGE = English` and the English `PROJECT_BRIEF` match the English main page. Only the navigation and built-in titles follow `OUTPUT_LANGUAGE`; `README.zh-CN.md` and `docs/zh-CN/` stay Chinese.
   - Tests are not documented.
 - The repeated Doxygen block on an out-of-line definition must match the declaration's. When they differ, Doxygen warns `has multiple @param documentation sections`, which fails the docs workflow.
-- Doxygen does not convert Markdown links with a fragment (`page.md#section`), so link to the page without one. `docs/README.md` becomes the `docs/` directory page (`IMPLICIT_DIR_DOCS`), and links to it resolve there.
-- The `README.md` example program must compile against the library. When the public API changes, rebuild it as a small `add_subdirectory` consumer.
+- Doxygen does not convert Markdown links with a fragment (`page.md#section`), so link to the page without one. `docs/en/README.md` and `docs/zh-CN/README.md` become the directory pages of `docs/en/` and `docs/zh-CN/` (`IMPLICIT_DIR_DOCS`), and links to them resolve there.
+- The example program in `README.md` and `README.zh-CN.md` must compile against the library; the two copies differ only in their comments. When the public API changes, rebuild it as a small `add_subdirectory` consumer.
 
 ## Build notes
 

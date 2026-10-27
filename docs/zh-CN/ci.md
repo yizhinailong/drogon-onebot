@@ -1,20 +1,22 @@
 # 版本标签与 Linux CI
 
-[文档索引](README.md) · [项目首页](../README.md)
+[English](../en/ci.md) · 简体中文
+
+[文档索引](README.md) · [项目首页](../../README.zh-CN.md)
 
 仓库有三个工作流，逻辑都直接写在 YAML 中，不依赖额外脚本：
 
 | 工作流 | 作用 |
 | --- | --- |
-| [linux-ci.yml](../.github/workflows/linux-ci.yml)（Linux CI） | 在分支推送、PR 和版本标签上构建并运行测试 |
-| [version-tag.yml](../.github/workflows/version-tag.yml)（Create Version Tag） | `project()` 的 `VERSION` 变化时创建带注释的标签，并在该标签上启动 Linux CI |
-| [docs.yml](../.github/workflows/docs.yml)（Documentation） | 生成 Doxygen 文档并发布到 GitHub Pages，见 [Doxygen 使用说明](doxygen.md) |
+| [linux-ci.yml](../../.github/workflows/linux-ci.yml)（Linux CI） | 在分支推送、PR 和版本标签上构建并运行测试 |
+| [version-tag.yml](../../.github/workflows/version-tag.yml)（Create Version Tag） | `project()` 的 `VERSION` 变化时创建带注释的标签，并在该标签上启动 Linux CI |
+| [docs.yml](../../.github/workflows/docs.yml)（Documentation） | 生成 Doxygen 文档并发布到 GitHub Pages，见 [Doxygen 使用说明](doxygen.md) |
 
 库以源码方式供其他项目使用，标签本身就是发布物，因此没有单独的 Release 工作流，也不上传构建产物。目前只有 Linux CI。
 
 ## 版本标签
 
-[version-tag.yml](../.github/workflows/version-tag.yml) 在推送到 `master` 且修改了 `CMakeLists.txt` 时运行。
+[version-tag.yml](../../.github/workflows/version-tag.yml) 在推送到 `master` 且修改了 `CMakeLists.txt` 时运行。
 
 它读取推送前后两个提交中 `CMakeLists.txt` 第一个 `project()` 调用的 `VERSION`：
 
@@ -51,7 +53,7 @@
 
 ## Linux 构建和测试
 
-[linux-ci.yml](../.github/workflows/linux-ci.yml) 的触发方式：
+[linux-ci.yml](../../.github/workflows/linux-ci.yml) 的触发方式：
 
 - 向任意分支推送提交；
 - 创建、更新或重新打开 PR；
@@ -87,7 +89,7 @@
 - 测试任务只需要仓库只读权限，`actions/checkout` 不保留凭据。
 - 第三方 action 固定到提交 SHA，并在注释中保留对应版本；更新时同时核对版本与提交。
 - 升级 CMake 时，必须同时更新版本与校验和。
-- 升级 vcpkg 提交会改变 drogon 等依赖的版本。应先在本地用同一提交验证，再同步更新 [AGENTS.md](../AGENTS.md) 中记录的 drogon 版本。
+- 升级 vcpkg 提交会改变 drogon 等依赖的版本。应先在本地用同一提交验证，再同步更新 [AGENTS.md](../../AGENTS.md) 中记录的 drogon 版本。
 
 ## 本地验证
 

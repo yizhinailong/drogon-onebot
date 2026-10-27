@@ -1,38 +1,40 @@
 # drogon-onebot
 
-基于 [drogon](https://github.com/drogonframework/drogon) 的 [OneBot v11](https://github.com/botuniverse/onebot-11) 插件库，供其他 drogon 应用以插件形式使用。它实现了两部分：
+English · [简体中文](README.zh-CN.md)
 
-- **调用动作**：OneBot v11 的 HTTP API。
-- **接收事件**：HTTP POST 上报。
+A [OneBot v11](https://github.com/botuniverse/onebot-11) plugin library for [drogon](https://github.com/drogonframework/drogon), used as a plugin by other drogon apps. It implements two parts:
 
-行为以 [NapCat](https://github.com/NapNeko/NapCatQQ) 为准测试。
+- **Calling actions**: the OneBot v11 HTTP API.
+- **Receiving events**: HTTP POST reporting.
 
-所有接口都是 drogon 协程：动作返回 `drogon::Task<Result<T>>`，其中 `Result<T>` 即 `std::expected<T, Error>`；事件按 `post_type` 分发给 `OnMessage` 等方法注册的回调。
+Its behavior is tested against [NapCat](https://github.com/NapNeko/NapCatQQ).
 
-[快速开始](#快速开始) · [文档索引](docs/README.md) · [插件使用说明](docs/drogon-plugin.md) · [版本标签与 Linux CI](docs/ci.md) · [Doxygen 使用说明](docs/doxygen.md)
+Every API is a drogon coroutine. Actions return `drogon::Task<Result<T>>`, where `Result<T>` is `std::expected<T, Error>`. Events are dispatched by `post_type` to the callbacks registered with `OnMessage` and the other `On*` methods.
 
-## 环境与依赖
+[Quick start](#quick-start) · [Documentation index](docs/en/README.md) · [Plugin guide](docs/en/drogon-plugin.md) · [Version tags and Linux CI](docs/en/ci.md) · [Doxygen guide](docs/en/doxygen.md)
 
-| 依赖 | 版本 | 说明 |
+## Requirements
+
+| Dependency | Version | Notes |
 | --- | --- | --- |
-| CMake | ≥ 4.0 | 构建使用 `CMakePresets.json` 中的 `<os>-<profile>` 预设 |
-| Ninja、ccache | 任意较新版本 | 预设固定使用 Ninja 生成器和 ccache 编译器启动器 |
-| 编译器 | Linux 上为 `clang++`，Windows 上为 `clang-cl` | 公开头文件使用 `std::expected`，需要 C++23 |
-| [vcpkg](https://github.com/microsoft/vcpkg) | classic 模式 | 提供 drogon，需设置 `VCPKG_ROOT` |
-| drogon | 1.9.13 | 由 vcpkg 安装，`just init` 执行 `vcpkg install drogon` |
+| CMake | ≥ 4.0 | The build uses the `<os>-<profile>` presets in `CMakePresets.json` |
+| Ninja, ccache | Any recent version | The presets always use the Ninja generator and the ccache compiler launcher |
+| Compiler | `clang++` on Linux, `clang-cl` on Windows | The public headers use `std::expected`, which needs C++23 |
+| [vcpkg](https://github.com/microsoft/vcpkg) | Classic mode | Provides drogon; `VCPKG_ROOT` must be set |
+| drogon | 1.9.13 | Installed by vcpkg; `just init` runs `vcpkg install drogon` |
 
-[Linux CI](.github/workflows/linux-ci.yml) 在 Ubuntu 24.04 上运行 debug 和 release 两套配置：
+[Linux CI](.github/workflows/linux-ci.yml) runs a debug and a release configuration on Ubuntu 24.04:
 
-- 工具：CMake 4.2.3、LLVM 21，vcpkg 固定在提供 drogon 1.9.13 的提交；
-- 内容：检查格式、构建并运行全部测试。
+- Tools: CMake 4.2.3 and LLVM 21, with vcpkg pinned to the commit that provides drogon 1.9.13.
+- Steps: check the formatting, build, and run all tests.
 
-详见 [版本标签与 Linux CI](docs/ci.md)。
+See [Version tags and Linux CI](docs/en/ci.md).
 
-<a id="快速开始"></a>
+<a id="quick-start"></a>
 
-## 快速开始
+## Quick start
 
-在仓库根目录安装依赖、构建并运行测试：
+From the repository root, install the dependencies, build, and run the tests:
 
 ```sh
 just init
@@ -40,11 +42,11 @@ just build
 just test
 ```
 
-`just test` 通过 CTest 运行 `tests/test_*.cpp` 编译出的全部测试程序。测试使用 drogon 自带的测试框架，需要服务端的测试由同一个 app 充当 NapCat，因此不需要网络或真实的 OneBot 实现。不使用 just 时，`cmake --workflow --preset linux-debug` 依次完成配置、构建和测试。
+`just test` uses CTest to run every test program built from `tests/test_*.cpp`. The tests use drogon's own test framework. The tests that need a server use the same app as a stand-in for NapCat, so they need neither network access nor a real OneBot implementation. Without just, `cmake --workflow --preset linux-debug` configures, builds, and tests in one go.
 
-## 在项目中使用
+## Using it in a project
 
-源码方式（以 CPM 为例，也可以用 `add_subdirectory`）：
+From source (CPM shown here; `add_subdirectory` works too):
 
 ```cmake
 CPMAddPackage(
@@ -56,11 +58,11 @@ CPMAddPackage(
 target_link_libraries(app PRIVATE drogon-onebot::drogon-onebot)
 ```
 
-- `GIT_TAG` 也可以写版本标签：`CMakeLists.txt` 中 `project()` 的 `VERSION` 变化后，会自动创建 `v<VERSION>` 标签。
-- 作为子项目时，测试和安装规则默认关闭。
-- 也可以先执行 `just publish`，再在消费项目中用 `find_package(drogon-onebot CONFIG REQUIRED)` 引入。
+- `GIT_TAG` can also name a version tag. When `VERSION` in the `project()` call of `CMakeLists.txt` changes, a `v<VERSION>` tag is created automatically.
+- As a subproject, the tests and install rules are off by default.
+- Alternatively, run `just publish` first, then use `find_package(drogon-onebot CONFIG REQUIRED)` in the consuming project.
 
-在应用的 config.json 中注册插件。下例中，密钥只从环境变量读取：
+Register the plugin in the app's config.json. In this example the secrets are read only from environment variables:
 
 ```json
 "plugins": [
@@ -76,23 +78,23 @@ target_link_libraries(app PRIVATE drogon-onebot::drogon-onebot)
 ]
 ```
 
-下面是完整程序：把收到的私聊消息原样发回。
+Here is a complete program that sends every private message back to its sender:
 
-- 回调在 beginning advice 里注册，这时插件已经初始化，但还没开始监听。
-- 事件路由先回复 204，再在后台运行回调，所以回调里可以放心等待较慢的操作。
+- The callback is registered in a beginning advice. At that point the plugin is initialized, but the listeners have not started yet.
+- The event route answers 204 first and then runs the callbacks in the background, so a callback can safely await slow operations.
 
 ```cpp
 /**
  * @file main.cpp
- * @brief 把收到的私聊消息原样发回。
+ * @brief Send every private message back to its sender.
  */
 #include <drogon/drogon.h>
 
 #include <drogon_onebot/onebot_client.hpp>
 
 /**
- * @brief 注册消息回调并启动 drogon。
- * @return drogon 退出后返回零。
+ * @brief Register the message callback and start drogon.
+ * @return Zero after drogon exits.
  */
 auto main() -> int {
     drogon::app()
@@ -114,23 +116,23 @@ auto main() -> int {
 }
 ```
 
-NapCat 端需要两个网络端点：
+NapCat needs two network endpoints:
 
-- HTTP 服务器：供本库调用动作，`token` 对应 `ONEBOT_ACCESS_TOKEN`。
-- HTTP 客户端：`url` 指向 `event_path`，`token` 对应 `ONEBOT_SECRET`，`messagePostFormat` 为 `array`。
+- An HTTP server, which this library calls actions on. Its `token` matches `ONEBOT_ACCESS_TOKEN`.
+- An HTTP client whose `url` points at `event_path`, whose `token` matches `ONEBOT_SECRET`, and whose `messagePostFormat` is `array`.
 
-配置项、事件类型、回调的注册时机和生命周期、错误分类与线程模型见 [插件使用说明](docs/drogon-plugin.md)。
+The [plugin guide](docs/en/drogon-plugin.md) covers the configuration keys, the event types, when to register callbacks and how long they live, the error kinds, and the threading model.
 
-## 开发与文档
+## Development and documentation
 
-使用文档采用简体中文，API 标识符、命令和协议值保留原文；新增文档请加入 [文档索引](docs/README.md)。开发约定见 [AGENTS.md](AGENTS.md)：
+The user documentation comes in English (`docs/en/`) and Simplified Chinese (`docs/zh-CN/`), with matching file names, and API identifiers, commands, and protocol values left as they are. Write a new page in both languages and add it to each [documentation index](docs/en/README.md). [README.zh-CN.md](README.zh-CN.md) is the Simplified Chinese version of this file; when you change one, update the other. The development conventions are in [AGENTS.md](AGENTS.md):
 
-- 代码风格；
-- 用 `clang-format --dry-run -Werror` 检查格式；
-- 每次改动行为时同步更新文档。
+- the code style;
+- checking the formatting with `clang-format --dry-run -Werror`;
+- updating the documentation with every behavior change.
 
-安装 Doxygen 后，执行 `just docs` 生成 API 文档，首页为 `build/doxygen/html/index.html`。推送到 `master` 时，Documentation 工作流会自动生成文档并发布到 GitHub Pages。首次启用所需的设置见 [Doxygen 使用说明](docs/doxygen.md)。
+With Doxygen installed, `just docs` generates the API documentation. Its home page is `build/doxygen/html/index.html`. On pushes to `master`, the Documentation workflow generates the documentation and publishes it to GitHub Pages. The [Doxygen guide](docs/en/doxygen.md) describes the settings needed the first time.
 
-## 许可证
+## License
 
-采用 [MIT 许可证](LICENSE)。
+Released under the [MIT License](LICENSE).

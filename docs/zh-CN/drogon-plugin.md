@@ -1,5 +1,7 @@
 # drogon 插件：`drogon_onebot::OneBotClient`
 
+[English](../en/drogon-plugin.md) · 简体中文
+
 本文整理 drogon-onebot 作为 drogon 插件的接入方式、配置、生命周期和使用方法，以及与 drogon 线程模型相关的设计约束。协议是 OneBot v11，实现了两部分：
 
 - 主动调用动作：HTTP API，`OneBot` 客户端。

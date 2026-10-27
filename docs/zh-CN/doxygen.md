@@ -1,6 +1,8 @@
 # Doxygen：生成 API 文档
 
-[文档索引](README.md) · [项目首页](../README.md)
+[English](../en/doxygen.md) · 简体中文
+
+[文档索引](README.md) · [项目首页](../../README.zh-CN.md)
 
 Doxygen 从源码注释生成类、函数、参数和返回值说明，并将 Markdown 使用指南纳入同一站点。
 项目配置位于根目录的 `Doxyfile`，按 Doxygen 1.18.0 的模板生成，并已用该版本验证。
@@ -30,10 +32,10 @@ doxygen Doxyfile
 
 ## GitHub Pages 自动发布
 
-[Documentation 工作流](../.github/workflows/docs.yml) 在推送到 `master` 时运行，前提是修改了以下内容之一：
+[Documentation 工作流](../../.github/workflows/docs.yml) 在推送到 `master` 时运行，前提是修改了以下内容之一：
 
 - `include/`、`src/`、`docs/`；
-- `README.md`、`AGENTS.md`、`Doxyfile`；
+- `README.md`、`README.zh-CN.md`、`AGENTS.md`、`Doxyfile`；
 - 工作流本身。
 
 它也支持从 Actions 页面手动运行；只有 `master` 分支的运行会发布网站。
@@ -71,23 +73,23 @@ doxygen Doxyfile
 | 配置 | 当前值 | 作用 |
 | --- | --- | --- |
 | `PROJECT_NAME` | `drogon-onebot` | 页面中的项目名称 |
-| `PROJECT_BRIEF` | 项目的中文简介 | 页面顶部的项目说明 |
+| `PROJECT_BRIEF` | 项目的英文简介 | 页面顶部的项目说明 |
 | `OUTPUT_DIRECTORY` | `build/doxygen` | 生成文件的存放目录 |
-| `OUTPUT_LANGUAGE` | `Chinese` | 使用中文导航和内置标题 |
+| `OUTPUT_LANGUAGE` | `English` | 使用英文导航和内置标题，与英文首页一致 |
 | `INPUT_ENCODING` | `UTF-8` | 源码与 Markdown 的字符编码 |
-| `INPUT` | `include src README.md docs AGENTS.md` | 公开头文件、实现、使用指南与仓库规范 |
+| `INPUT` | `include src README.md README.zh-CN.md docs AGENTS.md` | 公开头文件、实现、中英文 README、使用指南与仓库规范 |
 | `FILE_PATTERNS` | `*.hpp *.cpp *.md` | 扫描的文件扩展名 |
 | `RECURSIVE` | `YES` | 递归扫描输入目录 |
 | `STRIP_FROM_INC_PATH` | `include` | 类页面显示 `#include <drogon_onebot/...>`，与消费方的写法一致 |
-| `USE_MDFILE_AS_MAINPAGE` | `README.md` | 使用项目 README 作为首页 |
+| `USE_MDFILE_AS_MAINPAGE` | `README.md` | 使用英文 README 作为首页；简体中文版 `README.zh-CN.md` 生成为单独的页面 |
 | `SOURCE_BROWSER` | `YES` | 生成可跳转的源码页面 |
 | `GENERATE_HTML` | `YES` | 生成浏览器可查看的文档 |
 | `GENERATE_LATEX` | `NO` | 不生成 LaTeX 文档 |
 | `GENERATE_TREEVIEW` | `YES` | 显示树状导航 |
 | `HAVE_DOT` | `NO` | 默认无需安装 Graphviz |
 
-`OUTPUT_LANGUAGE` 不翻译注释正文，源码中的英文注释仍以英文显示。
-新增使用指南应使用简体中文，并加入 [文档索引](README.md)。
+`OUTPUT_LANGUAGE` 只决定导航和内置标题的语言，不翻译页面正文：首页、源码注释和 `docs/en/` 是英文，`README.zh-CN.md` 与 `docs/zh-CN/` 是简体中文。
+新增使用指南时，在 `docs/en/` 和 `docs/zh-CN/` 下各写一份同名文件，并加入两边的文档索引（本目录的见 [文档索引](README.md)）。
 
 查看与 Doxygen 默认配置不同的选项：
 
