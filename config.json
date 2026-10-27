@@ -20,7 +20,9 @@
     {
       "name": "drogon_onebot::OneBotClient",
       "config": {
-        "base_url": "http://127.0.0.1:18080"
+        "base_url": "http://127.0.0.1:18080",
+        "event_path": "/onebot/event",
+        "secret_env": "DROGON_ONEBOT_TEST_SECRET"
       }
     }
   ]
