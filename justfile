@@ -29,5 +29,9 @@ run target profile="debug": (build profile)
 test profile="debug": (build profile)
     @ctest --preset "{{ platform }}-{{ profile }}"
 
+docs:
+    @cmake -E make_directory "{{ build_dir }}/doxygen"
+    @doxygen Doxyfile
+
 clean profile="":
     @cmake -E rm -rf {{ if profile == "" { build_dir + " " + publish_dir } else { build_dir + "/" + platform + "-" + profile } }}
