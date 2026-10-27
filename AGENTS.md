@@ -92,7 +92,40 @@ The tests use drogon's own framework, `drogon/drogon_test.h`, which is installed
 - `just run <target> [profile]`: build everything, then run `build/<os>-<profile>/tests/<target>`, e.g. `just run test_events`.
 - `just publish [profile]`: build (default `release`) and `cmake --install` into `publish/`.
 - `just clean [profile]`: delete `build/<os>-<profile>/`, or `build/` and `publish/` when no profile is given.
+- `just docs`: create `build/doxygen` (Doxygen does not create the output path) and run `doxygen Doxyfile`; open `build/doxygen/html/index.html`.
 - Without just: `cmake --workflow --preset linux-debug` configures, builds, and tests.
+
+## CI, version tags, and docs
+
+The workflows follow `yizhinailong/mcr` (pinned action SHAs with the version in a comment, checksum-verified tool downloads, logic inline in the YAML). `docs/ci.md` and `docs/doxygen.md` describe them for users; keep those pages in sync.
+
+- `.github/workflows/linux-ci.yml` (Linux CI) runs on every branch push, PR, manual dispatch, and on version tags. It runs a `debug` and a `release` matrix leg on `ubuntu-24.04`.
+  - Tools: CMake 4.2.3 (Kitware tarball, SHA-256 pinned) and LLVM 21 from apt.llvm.org (signing key fingerprint checked). `/usr/lib/llvm-21/bin` goes on `PATH`, so the presets' plain `clang++` resolves to LLVM 21.
+  - Steps: `clang-format --dry-run -Werror` (debug leg only), then `vcpkg install drogon`, then `cmake --preset`, `cmake --build --preset`, and `ctest --preset`.
+  - vcpkg is a shallow fetch of the pinned commit `67972e92`, the checkout that provides drogon 1.9.13 port-version 2, the version these docs cite. Bump `VCPKG_COMMIT` only after verifying locally on the same commit.
+  - The vcpkg binary cache is restored and saved with `actions/cache/restore` and `actions/cache/save` right after the install, so a failing build still keeps the dependencies. The key includes `ImageOS`, the vcpkg commit, `gcc -dumpfullversion` (vcpkg builds the ports with the system GCC), and the CMake version.
+  - On a tag, a step after configure compares the tag with `CMAKE_PROJECT_VERSION` from `CMakeCache.txt`. CMake parses that value itself, which double-checks the tag workflow's text parsing.
+  - The ubuntu-24.04 image has GCC 12 to 14. Clang 21 uses the newest libstdc++ it finds (14).
+- `.github/workflows/version-tag.yml` runs on pushes to `master` that touch `CMakeLists.txt`, and on manual dispatch.
+  - It reads `VERSION` from the first `project()` call at the push's before and after commits. It strips `#` line comments, and the value must be a literal `major[.minor[.patch[.tweak]]]`. On a change, it creates the annotated tag `v<VERSION>` (`drogon-onebot <VERSION>`) on the pushed commit.
+  - A before commit without a usable version is only a baseline. A tag that already points at another commit fails the run; one on the same commit is reused.
+  - Tags pushed with `GITHUB_TOKEN` do not trigger push workflows, so it then runs `gh workflow run linux-ci.yml --ref <tag>`. That is why Linux CI keeps `workflow_dispatch`.
+  - There is no Release workflow. Consumers build from source (CPM `GIT_TAG v<VERSION>`), so the tag is the release.
+- `.github/workflows/docs.yml` builds the Doxygen site with Doxygen 1.18.0 (SHA-256 pinned) on pushes to `master` that touch the documented paths, then deploys it to GitHub Pages. Pages must use the "GitHub Actions" source in the repository settings.
+  - It appends `WARN_AS_ERROR = FAIL_ON_WARNINGS` through stdin (`( cat Doxyfile; echo ... ) | doxygen -`), so any comment warning fails the run.
+  - The `Doxyfile` itself keeps `NO`, because older local Doxygen versions warn about unknown 1.18 tags.
+- Check workflow edits with `actionlint` (with `shellcheck` on `PATH`, so the `run:` scripts are checked too).
+
+## Documentation
+
+- `README.md` (the Doxygen main page) and `docs/*.md` are in Simplified Chinese with identifiers in English; `AGENTS.md` stays in English. Add new pages to `docs/README.md`.
+- `Doxyfile` is the Doxygen 1.18.0 template, with the values that differ from it listed in `docs/doxygen.md` (`doxygen -x Doxyfile` prints them).
+  - `INPUT` is `include src README.md docs AGENTS.md` with `*.hpp *.cpp *.md`.
+  - `STRIP_FROM_INC_PATH = include` makes class pages show `#include <drogon_onebot/...>`.
+  - Tests are not documented.
+- The repeated Doxygen block on an out-of-line definition must match the declaration's. When they differ, Doxygen warns `has multiple @param documentation sections`, which fails the docs workflow.
+- Doxygen does not convert Markdown links with a fragment (`page.md#section`), so link to the page without one. `docs/README.md` becomes the `docs/` directory page (`IMPLICIT_DIR_DOCS`), and links to it resolve there.
+- The `README.md` example program must compile against the library. When the public API changes, rebuild it as a small `add_subdirectory` consumer.
 
 ## Build notes
 
