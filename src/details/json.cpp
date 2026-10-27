@@ -26,6 +26,8 @@ namespace drogon_onebot::details {
 
     /**
      * @brief Read an integer sent as a JSON number or as a decimal string.
+     *
+     * NapCat sends some IDs, such as `user_id` and `group_id` in events, as strings.
      * @param value Value to read.
      * @return The integer, or empty when `value` is neither an integral number nor a decimal string within range.
      */
