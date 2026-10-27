@@ -26,5 +26,8 @@ publish profile="release": (build profile)
 run target profile="debug": (build profile)
     @{{ build_dir }}/{{ platform }}-{{ profile }}/tests/{{ target }}{{ exe_suffix }}
 
+test profile="debug": (build profile)
+    @ctest --preset "{{ platform }}-{{ profile }}"
+
 clean profile="":
     @cmake -E rm -rf {{ if profile == "" { build_dir + " " + publish_dir } else { build_dir + "/" + platform + "-" + profile } }}

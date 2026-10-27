@@ -55,6 +55,7 @@ target_link_libraries(
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 
 if(DROGON_ONEBOT_BUILD_TESTS)
+    enable_testing()
     add_subdirectory(tests)
 endif()
 
