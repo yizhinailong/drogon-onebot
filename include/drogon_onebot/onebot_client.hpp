@@ -1,9 +1,10 @@
 /**
  * @file onebot_client.hpp
- * @brief Declare the `OneBot` client and the drogon plugin that holds its endpoint settings.
+ * @brief Declare the `OneBot` client and the drogon plugin that holds its settings and receives events.
  */
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -14,23 +15,49 @@
 #include "drogon_onebot/error.hpp"
 #include "drogon_onebot/types/account.hpp"
 #include "drogon_onebot/types/action.hpp"
+#include "drogon_onebot/types/event.hpp"
 #include "drogon_onebot/types/message.hpp"
 
 namespace drogon_onebot {
 
     namespace details {
 
+        class EventReceiver;
         class Transport;
 
     } // namespace details
 
     /**
-     * @brief Endpoint settings of a `OneBot`; the plugin reads them from its `config` object.
+     * @brief Settings of the plugin: the HTTP API endpoint of a `OneBot` and the event route.
+     *
+     * The plugin reads them from its `config` object.
      */
     struct OneBotConfig {
         std::string base_url;     ///< HTTP API base URL of the OneBot v11 implementation, e.g. `http://127.0.0.1:3000`; may carry a path prefix.
         std::string access_token; ///< Access token from the `access_token_env` variable; empty without it.
+        std::string event_path;   ///< Path of the route that receives posted events, e.g. `/onebot/event`; empty registers no route.
+        std::string secret;       ///< Secret from the `secret_env` variable that signs posted events; empty accepts unsigned events.
     };
+
+    /**
+     * @brief Coroutine that handles a message event.
+     */
+    using MessageHandler = std::function<drogon::Task<>(MessageEvent)>;
+
+    /**
+     * @brief Coroutine that handles a notice event.
+     */
+    using NoticeHandler = std::function<drogon::Task<>(NoticeEvent)>;
+
+    /**
+     * @brief Coroutine that handles a request event.
+     */
+    using RequestHandler = std::function<drogon::Task<>(RequestEvent)>;
+
+    /**
+     * @brief Coroutine that handles a meta event.
+     */
+    using MetaEventHandler = std::function<drogon::Task<>(MetaEvent)>;
 
     /**
      * @brief Client for the HTTP API of one OneBot v11 implementation.
@@ -103,23 +130,34 @@ namespace drogon_onebot {
     };
 
     /**
-     * @brief Drogon plugin that owns the OneBot endpoint settings.
+     * @brief Drogon plugin that owns the OneBot settings and receives the events posted to it.
      *
      * Register it in the application's config.json:
      * @code{.json}
      * "plugins": [{
      *     "name": "drogon_onebot::OneBotClient",
-     *     "config": { "base_url": "http://127.0.0.1:3000", "access_token_env": "ONEBOT_ACCESS_TOKEN" }
+     *     "config": {
+     *         "base_url": "http://127.0.0.1:3000",
+     *         "access_token_env": "ONEBOT_ACCESS_TOKEN",
+     *         "event_path": "/onebot/event",
+     *         "secret_env": "ONEBOT_SECRET"
+     *     }
      * }]
      * @endcode
      *
-     * The access token is never read from config.json: `access_token_env` names
-     * the environment variable that holds it. Omit `access_token_env` when the
-     * OneBot implementation has no access token.
+     * Secrets are never read from config.json: `access_token_env` and `secret_env`
+     * name the environment variables that hold the access token of the HTTP API
+     * and the secret that signs posted events. Omit either when the OneBot
+     * implementation has none.
      *
-     * Then fetch it once `app().run()` has started, e.g. from a beginning advice
-     * or a handler: `drogon::app().getPlugin<drogon_onebot::OneBotClient>()`, and
-     * call `NewOneBotClient()` for a `OneBot` bound to these settings.
+     * With `event_path` set, the plugin registers a `POST` route there for the
+     * implementation's HTTP POST reporting (NapCat's HTTP client). The route
+     * checks `X-Signature` when a secret is set, answers 204 at once, and then
+     * runs the matching handlers in the background, so a slow handler does not
+     * hold the implementation's request open. Reply through `NewOneBotClient()`.
+     *
+     * Fetch the plugin once `app().run()` has started, e.g. from a beginning advice
+     * or a handler: `drogon::app().getPlugin<drogon_onebot::OneBotClient>()`.
      *
      * @note With a static build, the plugin registers itself only if the
      * application references this class (calling `getPlugin<OneBotClient>()` is
@@ -127,14 +165,16 @@ namespace drogon_onebot {
      */
     class OneBotClient : public drogon::Plugin<OneBotClient> {
     private:
-        OneBotConfig m_config; ///< Settings parsed in `initAndStart()`.
+        OneBotConfig m_config;                              ///< Settings parsed in `initAndStart()`.
+        std::shared_ptr<details::EventReceiver> m_receiver; ///< Handlers behind the `event_path` route, shared with it; created in `initAndStart()`.
 
     public:
         /**
-         * @brief Read the endpoint settings from the plugin's `config` object.
+         * @brief Read the settings from the plugin's `config` object and register the event route.
          * @param config The plugin's `config` object from config.json.
-         * @throws std::invalid_argument If `base_url` is missing or empty, or if
-         * `access_token_env` names an unset or empty environment variable.
+         * @throws std::invalid_argument If `base_url` is missing or empty, if
+         * `event_path` is set but does not start with `/`, or if `access_token_env`
+         * or `secret_env` names an unset or empty environment variable.
          */
         auto initAndStart(Json::Value const& config) -> void override;
 
@@ -154,6 +194,46 @@ namespace drogon_onebot {
          * @return A new client; call only after drogon has initialized the plugin.
          */
         [[nodiscard]] auto NewOneBotClient() const -> OneBot;
+
+        /**
+         * @brief Run `handler` for every message event posted to `event_path`.
+         * @param handler Coroutine to run. Each event runs a copy of it, so its
+         * captures stay alive until that run completes. An exception it throws is
+         * logged and dropped.
+         * @note Call only after drogon has initialized the plugin, and before the
+         * listeners start: from a beginning advice, or from `initAndStart()` of a
+         * plugin that lists this one under `dependencies`. The route reads the
+         * handlers from IO threads without a lock.
+         */
+        auto OnMessage(MessageHandler handler) -> void;
+
+        /**
+         * @brief Run `handler` for every notice event posted to `event_path`.
+         * @param handler Coroutine to run; see `OnMessage()` for its lifetime and exceptions.
+         * @note Register handlers at the times that `OnMessage()` lists.
+         */
+        auto OnNotice(NoticeHandler handler) -> void;
+
+        /**
+         * @brief Run `handler` for every request event posted to `event_path`.
+         * @param handler Coroutine to run; see `OnMessage()` for its lifetime and exceptions.
+         * @note Register handlers at the times that `OnMessage()` lists.
+         */
+        auto OnRequest(RequestHandler handler) -> void;
+
+        /**
+         * @brief Run `handler` for every meta event posted to `event_path`.
+         * @param handler Coroutine to run; see `OnMessage()` for its lifetime and exceptions.
+         * @note Register handlers at the times that `OnMessage()` lists.
+         */
+        auto OnMetaEvent(MetaEventHandler handler) -> void;
+
+    private:
+        /**
+         * @brief Log that a handler will never run because no event route is registered.
+         * @param method Name of the registering method, for the log message.
+         */
+        auto warnWithoutRoute(char const* method) const -> void;
     };
 
 } // namespace drogon_onebot
