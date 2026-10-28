@@ -141,3 +141,5 @@ The workflows follow `yizhinailong/mcr` (pinned action SHAs with the version in 
 New C++ code follows the `cpp-style-ref` skill (CMake + vcpkg variant). Drogon's virtual overrides (`initAndStart`, `shutdown`) keep their upstream names.
 
 Format with `clang-format -i <files>` (root `.clang-format`). Check with `clang-format --dry-run -Werror <files>`. clang-format regroups includes: in `src/actions/*.cpp`, `drogon_onebot/onebot_client.hpp` is not treated as the main header, so it sorts after `details/...`.
+
+`.clang-format` sets `LineEnding: LF`, so the dry run flags every line of a CRLF file. `.gitattributes` (`* text=auto eol=lf`) overrides `core.autocrlf` and checks every file out with LF, Windows included. A working tree from before `.gitattributes` keeps its CRLF files until they are converted or checked out again.
