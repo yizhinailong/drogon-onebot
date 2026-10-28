@@ -180,6 +180,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 - `status` 为 `ok` 或 `async` 都算成功；`async` 时 `data` 为 null，执行结果无法获知。
 - `message` 会带上响应里的 `message`，为空时用 `wording`。这两个字段是 NapCat 等实现的扩展，v11 标准只有 `status`、`retcode`、`data`。
 - NapCat 对不存在的动作返回 HTTP 200、`status` 为 `failed`、`retcode` 200，因此是 `Action` 错误而不是 `Status` 404。
+- 在 Windows 上，连接被拒要约 2 秒才报告，因为系统会先重试连接。`timeout` 比这更短时，请求会以 `Timeout` 而不是 `Connection` 失败。Linux 上连接被拒会立即失败。
 
 ## 线程与事件循环
 

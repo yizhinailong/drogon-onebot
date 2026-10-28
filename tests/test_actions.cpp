@@ -321,7 +321,9 @@ DROGON_TEST(CallActionTimeout) {
 
 DROGON_TEST(CallActionUnreachableIsConnectionError) {
     drogon_onebot::OneBot const bot{ drogon_onebot::OneBotConfig{ .base_url = "http://127.0.0.1:1" } };
-    auto const result{ drogon::sync_wait(bot.CallAction({ .action = "get_login_info", .timeout = 2.0 })) };
+    // Windows retries a refused connect for about 2 s before reporting it, so a
+    // shorter timeout would make this a Timeout instead of a Connection error.
+    auto const result{ drogon::sync_wait(bot.CallAction({ .action = "get_login_info", .timeout = 10.0 })) };
     REQUIRE(!result.has_value());
     CHECK(result.error().kind == drogon_onebot::ErrorKind::Connection);
 }

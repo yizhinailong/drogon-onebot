@@ -82,6 +82,8 @@ The tests use drogon's own framework, `drogon/drogon_test.h`, which is installed
 | `test_events` | Exercises the signed event route. RFC 2202 vectors check the test's own HMAC, and one NapCat body carries a signature computed independently with Python. Also covers uppercase signatures, string IDs, the 401/403/400 rejections with no handler run, all four event types, `message_sent` being dropped, several handlers per event, a throwing handler, and the response not waiting for a slow handler. |
 | `test_events_unsigned` | Loads `config.json` without `secret_env` (`app().loadConfigJson`) and checks that unsigned events are accepted and any `X-Signature` is ignored. |
 
+- `CallActionUnreachableIsConnectionError` (`test_actions`) connects to `127.0.0.1:1` with a 10 s timeout. Windows retries a refused connect for about 2 s before it reports the failure, so a timeout of 2 s or less yields `Timeout` there instead of `Connection`. On Linux the connect fails immediately.
+
 ## Commands
 
 `just` drives the build. Recipes map onto CMake presets named `<os>-<profile>` (`linux-debug`, `linux-release`, `windows-debug`, `windows-release`), with build trees in `build/<preset>/`.

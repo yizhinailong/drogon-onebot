@@ -180,6 +180,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 - A `status` of `ok` or `async` counts as success. With `async`, `data` is null, and the result of the action cannot be known.
 - `message` includes the response's `message`, or its `wording` when `message` is empty. Both fields are extensions from NapCat and other implementations; the v11 standard only has `status`, `retcode`, and `data`.
 - NapCat answers an unknown action with HTTP 200, `status` `failed`, and `retcode` 200, so it is an `Action` error, not a `Status` 404.
+- On Windows, a refused connection takes about 2 seconds to report, because the system retries the connect first. With a `timeout` shorter than that, the request fails with `Timeout` instead of `Connection`. On Linux, a refused connection fails immediately.
 
 ## Threads and event loops
 
