@@ -11,7 +11,7 @@
 
 所有接口都是 drogon 协程：动作返回 `drogon::Task<Result<T>>`，其中 `Result<T>` 即 `std::expected<T, Error>`；事件按 `post_type` 分发给 `OnMessage` 等方法注册的回调。
 
-[快速开始](#快速开始) · [文档索引](docs/zh-CN/README.md) · [插件使用说明](docs/zh-CN/drogon-plugin.md) · [版本标签与 Linux CI](docs/zh-CN/ci.md) · [Doxygen 使用说明](docs/zh-CN/doxygen.md)
+[快速开始](#快速开始) · [文档索引](docs/zh-CN/README.md) · [插件使用说明](docs/zh-CN/drogon-plugin.md) · [版本标签、CI 与发布](docs/zh-CN/ci.md) · [Doxygen 使用说明](docs/zh-CN/doxygen.md)
 
 ## 环境与依赖
 
@@ -23,12 +23,13 @@
 | [vcpkg](https://github.com/microsoft/vcpkg) | classic 模式 | 提供 drogon，需设置 `VCPKG_ROOT` |
 | drogon | 1.9.13 | 由 vcpkg 安装，`just init` 执行 `vcpkg install drogon` |
 
-[Linux CI](.github/workflows/linux-ci.yml) 在 Ubuntu 24.04 上运行 debug 和 release 两套配置：
+[Linux CI](.github/workflows/linux-ci.yml) 和 [Windows CI](.github/workflows/windows-ci.yml) 分别在 Ubuntu 24.04 和 Windows Server 2025 上运行 debug 和 release 两套配置：
 
-- 工具：CMake 4.2.3、LLVM 21，vcpkg 固定在提供 drogon 1.9.13 的提交；
-- 内容：检查格式、构建并运行全部测试。
+- 工具：CMake 4.2.3，Linux 上用 LLVM 21，Windows 上用运行器镜像自带的 LLVM，vcpkg 固定在提供 drogon 1.9.13 的提交；
+- 内容：检查格式（在 Linux 上）、构建并运行全部测试；
+- 在版本标签上，[Release](.github/workflows/release.yml) 工作流运行这两个 CI，并把它们的 release 构建发布为 GitHub Release。
 
-详见 [版本标签与 Linux CI](docs/zh-CN/ci.md)。
+详见 [版本标签、CI 与发布](docs/zh-CN/ci.md)。
 
 <a id="快速开始"></a>
 
@@ -61,6 +62,7 @@ target_link_libraries(app PRIVATE drogon-onebot::drogon-onebot)
 - `GIT_TAG` 也可以写版本标签：`CMakeLists.txt` 中 `project()` 的 `VERSION` 变化后，会自动创建 `v<VERSION>` 标签。
 - 作为子项目时，测试和安装规则默认关闭。
 - 也可以先执行 `just publish`，再在消费项目中用 `find_package(drogon-onebot CONFIG REQUIRED)` 引入。
+- 每个版本的 GitHub Release 上还有预编译的 Linux 和 Windows 包，只含 release 构建。解压后加入 `CMAKE_PREFIX_PATH`，即可用 `find_package` 引入；drogon 仍从 vcpkg 获取。使用要求见 [版本标签、CI 与发布](docs/zh-CN/ci.md) 的“发布”一节。
 
 在应用的 config.json 中注册插件。下例中，密钥只从环境变量读取：
 

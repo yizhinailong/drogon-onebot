@@ -19,5 +19,5 @@ API 参考由 Doxygen 从 `include/` 和 `src/` 的注释生成，见 [Doxygen �
 | 文档 | 内容 |
 | --- | --- |
 | [Doxygen 使用说明](doxygen.md) | 本地生成、GitHub Pages 自动发布、配置与警告 |
-| [版本标签与 Linux CI](ci.md) | 版本变更自动打标签、Linux 构建与测试 |
+| [版本标签、CI 与发布](ci.md) | 版本变更自动打标签、Linux 与 Windows 构建和测试、把包发布到 GitHub Release |
 | [仓库规范](../../AGENTS.md) | 设计决策、构建、测试与代码风格（英文） |

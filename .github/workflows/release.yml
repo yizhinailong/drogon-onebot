@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux:
+    name: Linux CI
+    uses: ./.github/workflows/linux-ci.yml
+
+  windows:
+    name: Windows CI
+    uses: ./.github/workflows/windows-ci.yml
+
+  release:
+    name: Publish GitHub Release
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Download package artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: drogon-onebot-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          shopt -s nullglob
+          assets=(dist/*)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo '::error::No package archives were downloaded'
+            exit 1
+          fi
+
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+            echo "Release $RELEASE_TAG already exists; package assets updated"
+            exit 0
+          fi
+
+          gh release create "$RELEASE_TAG" --verify-tag --generate-notes \
+            --title "drogon-onebot ${RELEASE_TAG#v}" "${assets[@]}"

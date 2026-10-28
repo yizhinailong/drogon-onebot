@@ -59,6 +59,7 @@ Keep both ways working when you change `CMakeLists.txt`.
 
 - From source: `add_subdirectory(<path>)`, or CPM with `SOURCE_DIR`/`GIT_REPOSITORY`. `PROJECT_IS_TOP_LEVEL` is false then, so `DROGON_ONEBOT_BUILD_TESTS` and `DROGON_ONEBOT_INSTALL` default to OFF, and neither the tests nor `enable_testing()` reach the consumer. `../assistantbot` with `-DCPM_drogon-onebot_SOURCE=<this checkout>` builds the library with its `-std=gnu++26`.
 - Installed: `just publish` installs into `publish/`. Consumers set `CMAKE_PREFIX_PATH` to that directory and call `find_package(drogon-onebot CONFIG REQUIRED)`. The package config calls `find_dependency(Drogon CONFIG)`, so consumers don't need their own `find_package(Drogon)`. Version compatibility is `SameMinorVersion`.
+  - The GitHub Release packages (`drogon-onebot-<version>-<os>-x64`, see the Release workflow below) are the same install tree plus `LICENSE`, from the release build only. Consumers still get drogon from vcpkg, with `x64-windows-static-md` on Windows.
 - Either way, link `drogon-onebot::drogon-onebot`. It carries `Drogon::Drogon` publicly.
 
 ## Tests
@@ -99,24 +100,31 @@ The tests use drogon's own framework, `drogon/drogon_test.h`, which is installed
 
 ## CI, version tags, and docs
 
-The workflows follow `yizhinailong/mcr` (pinned action SHAs with the version in a comment, checksum-verified tool downloads, logic inline in the YAML). `docs/*/ci.md` and `docs/*/doxygen.md` describe them for users; keep those pages in sync.
+The workflows follow `yizhinailong/mcr` (pinned action SHAs with the version in a comment, checksum-verified tool downloads, logic inline in the YAML); `windows-ci.yml` and `release.yml`, the `workflow_call` trigger and package steps in `linux-ci.yml`, and the Release dispatch in `version-tag.yml` follow mcr's workflows of the same names. `../drogon-openai`'s workflows are copies of these, differing only in the project name and the Test step comments; keep the two repos in step when changing them. `docs/*/ci.md` and `docs/*/doxygen.md` describe the workflows for users; keep those pages in sync.
 
-- `.github/workflows/linux-ci.yml` (Linux CI) runs on every branch push, PR, manual dispatch, and on version tags. It runs a `debug` and a `release` matrix leg on `ubuntu-24.04`.
+- `.github/workflows/linux-ci.yml` (Linux CI) runs on every branch push, PR, and manual dispatch, and as a reusable workflow (`workflow_call`) from Release on version tags. Its `push` trigger covers branches only, so a tag runs it only through Release. It runs a `debug` and a `release` matrix leg on `ubuntu-24.04`.
   - Tools: CMake 4.2.3 (Kitware tarball, SHA-256 pinned) and LLVM 21 from apt.llvm.org (signing key fingerprint checked). `/usr/lib/llvm-21/bin` goes on `PATH`, so the presets' plain `clang++` resolves to LLVM 21.
   - Steps: `clang-format --dry-run -Werror` (debug leg only), then `vcpkg install drogon`, then `cmake --preset`, `cmake --build --preset`, and `ctest --preset`.
-  - vcpkg is a shallow fetch of the pinned commit `67972e92`, the checkout that provides drogon 1.9.13 port-version 2, the version these docs cite. Bump `VCPKG_COMMIT` only after verifying locally on the same commit.
+  - vcpkg is a shallow fetch of the pinned commit `67972e92`, the checkout that provides drogon 1.9.13 port-version 2, the version these docs cite. Bump `VCPKG_COMMIT` (in both CI workflows) only after verifying locally on the same commit.
   - The vcpkg binary cache is restored and saved with `actions/cache/restore` and `actions/cache/save` right after the install, so a failing build still keeps the dependencies. The key includes `ImageOS`, the vcpkg commit, `gcc -dumpfullversion` (vcpkg builds the ports with the system GCC), and the CMake version.
   - On a tag, a step after configure compares the tag with `CMAKE_PROJECT_VERSION` from `CMakeCache.txt`. CMake parses that value itself, which double-checks the tag workflow's text parsing.
+  - On a tag, the `release` leg runs `cmake --install` into `$RUNNER_TEMP/drogon-onebot-<version>-linux-x64/`, adds `LICENSE`, packs it as `.tar.gz`, and uploads it as the `drogon-onebot-linux-x64` artifact (7 days).
   - The ubuntu-24.04 image has GCC 12 to 14. Clang 21 uses the newest libstdc++ it finds (14).
+- `.github/workflows/windows-ci.yml` (Windows CI) has the same triggers, matrix, tag check, and packaging as Linux CI, on `windows-2025` with `shell: pwsh`. It does not check formatting; the Linux debug leg does.
+  - `ilammy/msvc-dev-cmd` sets up the x64 MSVC environment first, which `clang-cl` needs. The CMake 4.2.3 zip and ccache 4.14.2 (the presets hard-wire ccache, and the image has none), both SHA-256 pinned, go on `GITHUB_PATH` after it, so they come before Visual Studio's CMake 3.31. LLVM (`clang-cl`) and Ninja come from the image, which had LLVM 20.1.8 and Ninja 1.13.2 as of image 20261021; the install step prints them.
+  - vcpkg uses the same commit, `bootstrap-vcpkg.bat`, and `--triplet`/`--host-triplet` from `VCPKG_TRIPLET` (`x64-windows-static-md`, the same as `just init` and the `windows-base` preset). vcpkg builds the ports with MSVC and its own CMake, so the cache key is `ImageOS`, the triplet, the vcpkg commit, and `VCToolsVersion`.
+  - GitHub's pwsh wrapper only checks the last exit code, so `run:` scripts with several native commands set `$PSNativeCommandUseErrorActionPreference = $true`. Don't pipe a native command into `Select-Object -First` there, because stopping it early can count as a failure; index the captured output instead.
+  - On a tag, the `release` leg packs `drogon-onebot-<version>-windows-x64.zip` with `Compress-Archive` and uploads it as the `drogon-onebot-windows-x64` artifact.
+- `.github/workflows/release.yml` (Release) runs on pushed `v*` tags and on manual dispatch. It calls both CI workflows with `uses:`, then its publish job (tags only, after both pass; the only job with `contents: write`) downloads the `drogon-onebot-*` artifacts and runs `gh release create --verify-tag --generate-notes` with the title `drogon-onebot <VERSION>`, or `gh release upload --clobber` when the release already exists. Runs for one tag queue instead of cancelling each other.
+  - The packages hold the release build only, by decision. On Windows that library uses `/MD`, so consumers' Debug builds (`/MDd`) cannot link it (`LNK2038`) and build from source instead.
 - `.github/workflows/version-tag.yml` runs on pushes to `master` that touch `CMakeLists.txt`, and on manual dispatch.
   - It reads `VERSION` from the first `project()` call at the push's before and after commits. It strips `#` line comments, and the value must be a literal `major[.minor[.patch[.tweak]]]`. On a change, it creates the annotated tag `v<VERSION>` (`drogon-onebot <VERSION>`) on the pushed commit.
   - A before commit without a usable version is only a baseline. A tag that already points at another commit fails the run; one on the same commit is reused.
-  - Tags pushed with `GITHUB_TOKEN` do not trigger push workflows, so it then runs `gh workflow run linux-ci.yml --ref <tag>`. That is why Linux CI keeps `workflow_dispatch`.
-  - There is no Release workflow. Consumers build from source (CPM `GIT_TAG v<VERSION>`), so the tag is the release.
+  - Tags pushed with `GITHUB_TOKEN` do not trigger push workflows, so it then runs `gh workflow run release.yml --ref <tag>`. That is why Release keeps `workflow_dispatch`.
 - `.github/workflows/docs.yml` builds the Doxygen site with Doxygen 1.18.0 (SHA-256 pinned) on pushes to `master` that touch the documented paths, then deploys it to GitHub Pages. Pages must use the "GitHub Actions" source in the repository settings.
   - It appends `WARN_AS_ERROR = FAIL_ON_WARNINGS` through stdin (`( cat Doxyfile; echo ... ) | doxygen -`), so any comment warning fails the run.
   - The `Doxyfile` itself keeps `NO`, because older local Doxygen versions warn about unknown 1.18 tags.
-- Check workflow edits with `actionlint` (with `shellcheck` on `PATH`, so the `run:` scripts are checked too).
+- Check workflow edits with `actionlint` (with `shellcheck` on `PATH`, so the bash `run:` scripts are checked too). actionlint does not check the pwsh scripts of Windows CI; run changed pwsh steps locally with the `GITHUB_*` files pointed at a temp directory.
 
 ## Documentation
 

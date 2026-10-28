@@ -5,6 +5,7 @@ on:
     branches: ['**']
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -138,3 +139,21 @@ jobs:
 
       - name: Test
         run: ctest --preset "linux-${{ matrix.profile }}"
+
+      - name: Package release
+        if: github.ref_type == 'tag' && matrix.profile == 'release'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          package_name="drogon-onebot-$version-linux-x64"
+          cmake --install build/linux-release --prefix "$RUNNER_TEMP/$package_name"
+          cp LICENSE "$RUNNER_TEMP/$package_name/"
+          tar -czf "$RUNNER_TEMP/$package_name.tar.gz" -C "$RUNNER_TEMP" "$package_name"
+
+      - name: Upload package
+        if: github.ref_type == 'tag' && matrix.profile == 'release'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: drogon-onebot-linux-x64
+          path: ${{ runner.temp }}/drogon-onebot-*-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 7

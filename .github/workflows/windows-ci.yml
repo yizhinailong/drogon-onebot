@@ -1,0 +1,170 @@
+name: Windows CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_VERSION: '4.2.3'
+  CMAKE_SHA256: 'eb4ebf5155dbb05436d675706b2a08189430df58904257ae5e91bcba4c86933c'
+  CCACHE_VERSION: '4.14.2'
+  CCACHE_SHA256: '6993ce645e53192cec592ee23186200b574ac4c59097ecde8d9cfd681b47ae84'
+  # vcpkg checkout with drogon 1.9.13 (port-version 2), the version the library is verified against.
+  VCPKG_COMMIT: '67972e92edd181d433927b42d8ab4bfa52ac164a'
+  # Static dependencies on the dynamic CRT, the same triplet as just init and the windows-base preset.
+  VCPKG_TRIPLET: 'x64-windows-static-md'
+
+jobs:
+  test:
+    name: Windows x64 ${{ matrix.profile }} build and test
+    if: ${{ !github.event.deleted }}
+    runs-on: windows-2025
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [debug, release]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: amd64
+
+      - name: Install CMake and ccache
+        # Runs after the MSVC environment, so these GITHUB_PATH entries come before Visual Studio's CMake.
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $cmakeName = "cmake-$env:CMAKE_VERSION-windows-x86_64"
+          $cmakeArchive = Join-Path $env:RUNNER_TEMP "$cmakeName.zip"
+          Invoke-WebRequest -Uri "https://github.com/Kitware/CMake/releases/download/v$env:CMAKE_VERSION/$cmakeName.zip" -OutFile $cmakeArchive
+          if ((Get-FileHash -LiteralPath $cmakeArchive -Algorithm SHA256).Hash -ne $env:CMAKE_SHA256) {
+              throw 'The CMake archive checksum does not match.'
+          }
+          Expand-Archive -LiteralPath $cmakeArchive -DestinationPath $env:RUNNER_TEMP -Force
+          $cmakeBin = Join-Path $env:RUNNER_TEMP "$cmakeName\bin"
+
+          $ccacheName = "ccache-$env:CCACHE_VERSION-windows-x86_64"
+          $ccacheArchive = Join-Path $env:RUNNER_TEMP "$ccacheName.zip"
+          Invoke-WebRequest -Uri "https://github.com/ccache/ccache/releases/download/v$env:CCACHE_VERSION/$ccacheName.zip" -OutFile $ccacheArchive
+          if ((Get-FileHash -LiteralPath $ccacheArchive -Algorithm SHA256).Hash -ne $env:CCACHE_SHA256) {
+              throw 'The ccache archive checksum does not match.'
+          }
+          Expand-Archive -LiteralPath $ccacheArchive -DestinationPath $env:RUNNER_TEMP -Force
+          $ccacheDir = Join-Path $env:RUNNER_TEMP $ccacheName
+
+          $cmakeBin, $ccacheDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $cmakeBin 'cmake.exe') --version
+          (& (Join-Path $ccacheDir 'ccache.exe') --version)[0]
+          # The image provides LLVM and Ninja; the presets name plain clang-cl.
+          (Get-Command clang-cl).Source
+          (clang-cl --version)[0]
+          ninja --version
+
+      - name: Compute vcpkg cache key
+        id: vcpkg-key
+        # vcpkg builds the ports with MSVC and its own CMake, so the key covers the MSVC toolset.
+        run: |
+          "key=vcpkg-$env:ImageOS-$env:VCPKG_TRIPLET-$env:VCPKG_COMMIT-msvc$env:VCToolsVersion-drogon" |
+              Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/vcpkg-binary-cache
+          key: ${{ steps.vcpkg-key.outputs.key }}
+
+      - name: Install vcpkg and drogon
+        env:
+          VCPKG_DISABLE_METRICS: '1'
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $vcpkgRoot = Join-Path $env:RUNNER_TEMP 'vcpkg'
+          git init --quiet $vcpkgRoot
+          git -C $vcpkgRoot fetch --quiet --depth 1 https://github.com/microsoft/vcpkg.git $env:VCPKG_COMMIT
+          git -C $vcpkgRoot checkout --quiet FETCH_HEAD
+          & (Join-Path $vcpkgRoot 'bootstrap-vcpkg.bat') -disableMetrics
+          $binaryCache = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force $binaryCache | Out-Null
+          $env:VCPKG_BINARY_SOURCES = "clear;files,$binaryCache,readwrite"
+          & (Join-Path $vcpkgRoot 'vcpkg.exe') install drogon --triplet $env:VCPKG_TRIPLET --host-triplet $env:VCPKG_TRIPLET
+          "VCPKG_ROOT=$vcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Save vcpkg binary cache
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/vcpkg-binary-cache
+          key: ${{ steps.vcpkg-key.outputs.key }}
+
+      - name: Show vcpkg build logs
+        if: failure()
+        run: |
+          $vcpkgRoot = Join-Path $env:RUNNER_TEMP 'vcpkg'
+          $vcpkgExe = Get-Item -LiteralPath (Join-Path $vcpkgRoot 'vcpkg.exe') -ErrorAction SilentlyContinue
+          if ($null -eq $vcpkgExe) {
+              exit 0
+          }
+          Get-ChildItem -LiteralPath (Join-Path $vcpkgRoot 'buildtrees') -Recurse -Filter '*.log' -ErrorAction SilentlyContinue |
+              Where-Object LastWriteTime -gt $vcpkgExe.LastWriteTime |
+              ForEach-Object {
+                  "==> $($_.FullName)"
+                  Get-Content -LiteralPath $_.FullName -Tail 40
+              }
+
+      - name: Configure
+        run: cmake --preset "windows-${{ matrix.profile }}"
+
+      - name: Verify tag matches project VERSION
+        if: github.ref_type == 'tag'
+        run: |
+          $cache = "build/windows-${{ matrix.profile }}/CMakeCache.txt"
+          $version = (Select-String -LiteralPath $cache -Pattern '^CMAKE_PROJECT_VERSION:STATIC=(.*)$').Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+              throw "Tag $env:GITHUB_REF_NAME must match project VERSION v$version"
+          }
+          "Verified $env:GITHUB_REF_NAME matches project VERSION."
+
+      - name: Build
+        run: cmake --build --preset "windows-${{ matrix.profile }}"
+
+      - name: Test
+        run: ctest --preset "windows-${{ matrix.profile }}"
+
+      - name: Package release
+        if: github.ref_type == 'tag' && matrix.profile == 'release'
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $packageRoot = Join-Path $env:RUNNER_TEMP "drogon-onebot-$version-windows-x64"
+          cmake --install build/windows-release --prefix $packageRoot
+          Copy-Item -LiteralPath LICENSE -Destination $packageRoot
+          Compress-Archive -LiteralPath $packageRoot -DestinationPath "$packageRoot.zip"
+
+      - name: Upload package
+        if: github.ref_type == 'tag' && matrix.profile == 'release'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: drogon-onebot-windows-x64
+          path: ${{ runner.temp }}/drogon-onebot-*-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 7

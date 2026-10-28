@@ -11,7 +11,7 @@ Its behavior is tested against [NapCat](https://github.com/NapNeko/NapCatQQ).
 
 Every API is a drogon coroutine. Actions return `drogon::Task<Result<T>>`, where `Result<T>` is `std::expected<T, Error>`. Events are dispatched by `post_type` to the callbacks registered with `OnMessage` and the other `On*` methods.
 
-[Quick start](#quick-start) · [Documentation index](docs/en/README.md) · [Plugin guide](docs/en/drogon-plugin.md) · [Version tags and Linux CI](docs/en/ci.md) · [Doxygen guide](docs/en/doxygen.md)
+[Quick start](#quick-start) · [Documentation index](docs/en/README.md) · [Plugin guide](docs/en/drogon-plugin.md) · [Version tags, CI, and releases](docs/en/ci.md) · [Doxygen guide](docs/en/doxygen.md)
 
 ## Requirements
 
@@ -23,12 +23,13 @@ Every API is a drogon coroutine. Actions return `drogon::Task<Result<T>>`, where
 | [vcpkg](https://github.com/microsoft/vcpkg) | Classic mode | Provides drogon; `VCPKG_ROOT` must be set |
 | drogon | 1.9.13 | Installed by vcpkg; `just init` runs `vcpkg install drogon` |
 
-[Linux CI](.github/workflows/linux-ci.yml) runs a debug and a release configuration on Ubuntu 24.04:
+[Linux CI](.github/workflows/linux-ci.yml) and [Windows CI](.github/workflows/windows-ci.yml) each run a debug and a release configuration, on Ubuntu 24.04 and Windows Server 2025:
 
-- Tools: CMake 4.2.3 and LLVM 21, with vcpkg pinned to the commit that provides drogon 1.9.13.
-- Steps: check the formatting, build, and run all tests.
+- Tools: CMake 4.2.3, LLVM 21 on Linux and the runner image's LLVM on Windows, with vcpkg pinned to the commit that provides drogon 1.9.13.
+- Steps: check the formatting (on Linux), build, and run all tests.
+- On a version tag, the [Release](.github/workflows/release.yml) workflow runs both and publishes their release builds as a GitHub Release.
 
-See [Version tags and Linux CI](docs/en/ci.md).
+See [Version tags, CI, and releases](docs/en/ci.md).
 
 <a id="quick-start"></a>
 
@@ -61,6 +62,7 @@ target_link_libraries(app PRIVATE drogon-onebot::drogon-onebot)
 - `GIT_TAG` can also name a version tag. When `VERSION` in the `project()` call of `CMakeLists.txt` changes, a `v<VERSION>` tag is created automatically.
 - As a subproject, the tests and install rules are off by default.
 - Alternatively, run `just publish` first, then use `find_package(drogon-onebot CONFIG REQUIRED)` in the consuming project.
+- Each version also has prebuilt Linux and Windows packages of the release build on its GitHub Release. Extract one and add it to `CMAKE_PREFIX_PATH` for `find_package`; drogon still comes from vcpkg. See the Releases section of [Version tags, CI, and releases](docs/en/ci.md) for the requirements.
 
 Register the plugin in the app's config.json. In this example the secrets are read only from environment variables:
 
