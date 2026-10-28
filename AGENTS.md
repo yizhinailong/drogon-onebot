@@ -132,6 +132,7 @@ The workflows follow `yizhinailong/mcr` (pinned action SHAs with the version in 
 ## Build notes
 
 - Requires CMake >= 4.0, Ninja, and ccache (hard-wired as `CMAKE_CXX_COMPILER_LAUNCHER`). Compiler is `clang++` on Linux, `clang-cl` on Windows.
+- The UCRT deprecates `getenv`, and clang-cl warns about every call. Read environment variables with `read_env` in `src/onebot_client.cpp`, which uses `_dupenv_s` on Windows and `getenv` elsewhere.
 - Don't set `CMAKE_CXX_STANDARD` here. The library declares `target_compile_features(PUBLIC cxx_std_23)` (the public headers use `std::expected`), which is exported to `find_package` consumers.
 - Drogon 1.9.13's `FindFilesystem.cmake` leaves an unset `CMAKE_CXX_STANDARD` defined as `""`, which `target_compile_features` rejects. Both `CMakeLists.txt` and `cmake/drogon-onebot-config.cmake.in` unset the empty value right after finding Drogon. Keep those blocks.
 - Sources and public headers are collected with `file(GLOB_RECURSE ... CONFIGURE_DEPENDS)`, so adding a file triggers a re-configure on the next build.

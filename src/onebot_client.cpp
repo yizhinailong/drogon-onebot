@@ -4,10 +4,12 @@
  */
 #include "drogon_onebot/onebot_client.hpp"
 
+#include <cstddef>
 #include <cstdlib>
 #include <format>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 #include <drogon/HttpAppFramework.h>
@@ -19,6 +21,29 @@
 namespace {
 
     /**
+     * @brief Read an environment variable of this process.
+     *
+     * Windows uses `_dupenv_s`, which returns a copy, because the UCRT deprecates `getenv`.
+     *
+     * @param name Variable name.
+     * @return The variable's value, or an empty string when it is unset.
+     */
+    auto read_env(char const* name) -> std::string {
+#ifdef _WIN32
+        char* buffer{ nullptr };
+        std::size_t size{ 0 };
+        if (_dupenv_s(&buffer, &size, name) != 0 || buffer == nullptr) {
+            return {};
+        }
+        std::unique_ptr<char, decltype(&std::free)> const owner{ buffer, &std::free };
+        return std::string{ buffer };
+#else
+        char const* value{ std::getenv(name) };
+        return value != nullptr ? value : "";
+#endif
+    }
+
+    /**
      * @brief Read a secret from the named environment variable.
      * @param env_name Variable name from `access_token_env` or `secret_env`; empty when there is no secret.
      * @return The variable's value, or an empty string when `env_name` is empty.
@@ -28,8 +53,8 @@ namespace {
         if (env_name.empty()) {
             return {};
         }
-        char const* value{ std::getenv(env_name.c_str()) };
-        if (value == nullptr || *value == '\0') {
+        std::string value{ read_env(env_name.c_str()) };
+        if (value.empty()) {
             throw std::invalid_argument{ std::format("drogon_onebot::OneBotClient: environment variable {} is unset or empty", env_name) };
         }
         return value;
