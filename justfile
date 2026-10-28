@@ -2,6 +2,8 @@ platform := os()
 build_dir := "./build"
 publish_dir := "./publish"
 exe_suffix := if platform == "windows" { ".exe" } else { "" }
+vcpkg_deps := "drogon"
+vcpkg_triplet := if platform == "windows" { "--triplet x64-windows-static-md --host-triplet x64-windows-static-md" } else { "" }
 
 default:
     @cmake --version
@@ -10,7 +12,7 @@ default:
     @just --list
 
 init:
-    @vcpkg install drogon
+    @vcpkg install {{ vcpkg_deps }} {{ vcpkg_triplet }}
 
 configure profile="debug" *args:
     @cmake --preset "{{ platform }}-{{ profile }}" {{ args }}
