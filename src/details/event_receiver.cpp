@@ -217,6 +217,25 @@ namespace {
     }
 
     /**
+     * @brief Read the fields of a `group_admin` notice.
+     * @param root Notice object.
+     * @return The fields, or the first problem found, e.g. `user_id is missing`.
+     */
+    auto to_group_admin_notice(
+        Json::Value const& root
+    ) -> std::expected<drogon_onebot::GroupAdminNotice, std::string> {
+        FieldReader fields{ root };
+        drogon_onebot::GroupAdminNotice notice{
+            .group_id = fields.RequiredInteger<std::int64_t>("group_id"),
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return notice;
+    }
+
+    /**
      * @brief Read the type-specific fields of a notice.
      * @param root Notice object.
      * @param notice_type The notice's `notice_type`.
@@ -229,6 +248,9 @@ namespace {
     ) -> std::expected<drogon_onebot::NoticeDetail, std::string> {
         if (notice_type == "group_upload") {
             return to_group_upload_notice(root);
+        }
+        if (notice_type == "group_admin") {
+            return to_group_admin_notice(root);
         }
         return drogon_onebot::NoticeDetail{};
     }

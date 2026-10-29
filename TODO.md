@@ -84,7 +84,7 @@
 通知事件，类型化字段在 `NoticeEvent::detail` 里：
 
 - [x] `group_upload`：群文件上传，`group_id`、`user_id`、`file`
-- [ ] `group_admin`：管理员变动，`group_id`、`user_id`
+- [x] `group_admin`：管理员变动，`group_id`、`user_id`
 - [ ] `group_decrease`：成员减少，`group_id`、`operator_id`、`user_id`
 - [ ] `group_increase`：成员增加，`group_id`、`operator_id`、`user_id`
 - [ ] `group_ban`：禁言，`group_id`、`operator_id`、`user_id`、`duration`

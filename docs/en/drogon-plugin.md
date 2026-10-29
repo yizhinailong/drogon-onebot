@@ -280,6 +280,7 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 | `notice_type` | `detail` | Fields |
 |---|---|---|
 | `group_upload` | `GroupUploadNotice` | `group_id`, `user_id`, `file` (`id`, `name`, `size`, `busid`) |
+| `group_admin` | `GroupAdminNotice` | `group_id`, `user_id`; `sub_type` is `set` or `unset` |
 
 ```cpp
 plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {

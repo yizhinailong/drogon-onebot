@@ -53,11 +53,19 @@ namespace drogon_onebot {
     };
 
     /**
+     * @brief Fields of a `group_admin` notice: a member became or stopped being an admin, by `NoticeEvent::sub_type` `set` or `unset`.
+     */
+    struct GroupAdminNotice {
+        std::int64_t group_id{}; ///< Group number.
+        std::int64_t user_id{};  ///< QQ number of the member whose role changed.
+    };
+
+    /**
      * @brief Type-specific fields of a notice, chosen by its `notice_type` and `sub_type`.
      *
      * `std::monostate` for any other notice, such as NapCat's extensions, whose fields stay in `NoticeEvent::raw`.
      */
-    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice>;
+    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice>;
 
     /**
      * @brief Event with `post_type` `notice`, e.g. a group member joining or a message being recalled.

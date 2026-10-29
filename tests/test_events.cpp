@@ -383,6 +383,19 @@ DROGON_TEST(ParsesGroupUploadNotice) {
     CHECK(upload->file.busid == 102);
 }
 
+DROGON_TEST(ParsesGroupAdminNotice) {
+    auto admin_json{ group_notice("group_admin") };
+    admin_json["sub_type"] = "set";
+    CHECK(post_signed(admin_json)->getStatusCode() == drogon::k204NoContent);
+    auto const notice{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(notice.has_value());
+    CHECK(notice->sub_type == "set");
+    auto const* const admin{ std::get_if<drogon_onebot::GroupAdminNotice>(&notice->detail) };
+    REQUIRE(admin != nullptr);
+    CHECK(admin->group_id == 30003);
+    CHECK(admin->user_id == 20002);
+}
+
 DROGON_TEST(RejectsNoticeWithoutTypedField) {
     auto upload_json{ group_notice("group_upload") };
     upload_json["file"]["id"] = "Ae7bVzY2Pq";

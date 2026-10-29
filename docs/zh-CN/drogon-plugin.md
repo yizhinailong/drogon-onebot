@@ -280,6 +280,7 @@ if (!sent) {
 | `notice_type` | `detail` | 字段 |
 |---|---|---|
 | `group_upload` | `GroupUploadNotice` | `group_id`、`user_id`、`file`（`id`、`name`、`size`、`busid`） |
+| `group_admin` | `GroupAdminNotice` | `group_id`、`user_id`；`sub_type` 为 `set` 或 `unset` |
 
 ```cpp
 plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
