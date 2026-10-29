@@ -146,6 +146,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `SetGroupLeave(SetGroupLeaveParams)` | `set_group_leave` | 无（`Result<void>`） |
 | `SetGroupSpecialTitle(SetGroupSpecialTitleParams)` | `set_group_special_title` | 无（`Result<void>`） |
 | `SetFriendAddRequest(SetFriendAddRequestParams)` | `set_friend_add_request` | 无（`Result<void>`） |
+| `SetGroupAddRequest(SetGroupAddRequestParams)` | `set_group_add_request` | 无（`Result<void>`） |
 
 类型化动作读取 `data` 的规则：
 
@@ -173,6 +174,7 @@ NapCat 在这些动作上的行为：
 - `SetGroupCardParams::card` 为空时删除群名片。NapCat 的 `set_group_card` 设置后会在约 3 秒内读回群名片，到时仍未改变就以 `Action` 失败。
 - `SetGroupSpecialTitleParams::special_title` 为空时删除专属头衔。NapCat 通过 packetBackend 设置头衔：它不可用时，`set_group_special_title` 以 `Action` 失败，`retcode` 为 400。NapCat 忽略 `duration`。
 - `SetFriendAddRequest` 接受好友请求事件的 `flag`，从 `RequestEvent::raw` 读取（`event.raw["flag"].asString()`）。`remark` 只在不为空时发送。没有 `flag` 对应的待处理请求时，NapCat 以 `Action` 失败；否则它不等 QQ 的处理结果，即使 QQ 拒绝，动作也会成功。
+- `SetGroupAddRequest` 以同样的方式接受群请求事件的 `flag` 和 `sub_type`，`sub_type` 和 `reason` 只在不为空时发送。NapCat 忽略 `sub_type`；没有 `reason` 时用一个空格代替，因为 QQ 可能拒绝空的理由。在机器人收到的邀请和最近 100 条群通知里都找不到 `flag` 对应的请求时，NapCat 以 `Action` 失败；否则它同样不检查 QQ 的处理结果。
 
 ### 消息段
 

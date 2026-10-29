@@ -146,6 +146,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `SetGroupLeave(SetGroupLeaveParams)` | `set_group_leave` | Nothing (`Result<void>`) |
 | `SetGroupSpecialTitle(SetGroupSpecialTitleParams)` | `set_group_special_title` | Nothing (`Result<void>`) |
 | `SetFriendAddRequest(SetFriendAddRequestParams)` | `set_friend_add_request` | Nothing (`Result<void>`) |
+| `SetGroupAddRequest(SetGroupAddRequestParams)` | `set_group_add_request` | Nothing (`Result<void>`) |
 
 How typed actions read `data`:
 
@@ -173,6 +174,7 @@ NapCat's behavior with these actions:
 - An empty `SetGroupCardParams::card` removes the card. NapCat's `set_group_card` reads the card back for about 3 seconds after setting it and fails with `Action` when it has not changed by then.
 - An empty `SetGroupSpecialTitleParams::special_title` removes the title. NapCat sets titles through its packet backend: without a working one, `set_group_special_title` fails with `Action` and retcode 400. NapCat ignores `duration`.
 - `SetFriendAddRequest` takes the `flag` of the friend request event, read from `RequestEvent::raw` (`event.raw["flag"].asString()`). It sends `remark` only when it is not empty. NapCat fails with `Action` when no pending request has that `flag`; otherwise it does not wait for QQ's answer, so the action succeeds even if QQ refuses.
+- `SetGroupAddRequest` takes the `flag` and `sub_type` of the group request event the same way, and sends `sub_type` and `reason` only when they are not empty. NapCat ignores `sub_type`, and replaces a missing `reason` with a single space, because QQ may reject an empty one. NapCat fails with `Action` when it finds no request with that `flag` among the bot's invitations and its latest 100 group notifications; otherwise it does not check QQ's answer either.
 
 ### Message segments
 

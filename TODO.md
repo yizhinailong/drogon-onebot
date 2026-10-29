@@ -35,7 +35,7 @@
 请求处理：
 
 - [x] `set_friend_add_request`：处理好友申请
-- [ ] `set_group_add_request`：处理加群申请和邀请
+- [x] `set_group_add_request`：处理加群申请和邀请
 
 信息查询：
 

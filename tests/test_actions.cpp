@@ -526,6 +526,7 @@ namespace {
         serve_setter("set_group_leave", "group not found");
         serve_setter("set_group_special_title", "packetBackend unavailable");
         serve_setter("set_friend_add_request", "No such request");
+        serve_setter("set_group_add_request", "No such request");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -1141,6 +1142,37 @@ DROGON_TEST(SetFriendAddRequestSendsRemarkOnlyWhenSet) {
 
 DROGON_TEST(SetFriendAddRequestPassesActionError) {
     auto const accepted{ drogon::sync_wait(bot_at("/failing").SetFriendAddRequest({ .flag = "1" })) };
+    REQUIRE(!accepted.has_value());
+    CHECK(accepted.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(accepted.error().message.contains("No such request"));
+}
+
+DROGON_TEST(SetGroupAddRequestSendsSubTypeAndReasonOnlyWhenSet) {
+    auto const accepted{ drogon::sync_wait(plugin_bot().SetGroupAddRequest({ .flag = "1761700000000000" })) };
+    CHECK(accepted.has_value());
+    auto const accept{ sent_to("set_group_add_request") };
+    CHECK(accept["flag"].asString() == "1761700000000000");
+    CHECK(accept["approve"].isBool());
+    CHECK(accept["approve"].asBool());
+    CHECK(!accept.isMember("sub_type"));
+    CHECK(!accept.isMember("reason"));
+
+    auto const refused{ drogon::sync_wait(plugin_bot().SetGroupAddRequest({
+        .flag = "1761700000000000",
+        .sub_type = "add",
+        .approve = false,
+        .reason = "group is full",
+    })) };
+    CHECK(refused.has_value());
+    auto const refuse{ sent_to("set_group_add_request") };
+    CHECK(refuse["sub_type"].asString() == "add");
+    CHECK(refuse["approve"].isBool());
+    CHECK(!refuse["approve"].asBool());
+    CHECK(refuse["reason"].asString() == "group is full");
+}
+
+DROGON_TEST(SetGroupAddRequestPassesActionError) {
+    auto const accepted{ drogon::sync_wait(bot_at("/failing").SetGroupAddRequest({ .flag = "1" })) };
     REQUIRE(!accepted.has_value());
     CHECK(accepted.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(accepted.error().message.contains("No such request"));

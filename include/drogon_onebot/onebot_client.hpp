@@ -307,6 +307,18 @@ namespace drogon_onebot {
         [[nodiscard]] auto SetFriendAddRequest(
             SetFriendAddRequestParams params
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `set_group_add_request`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing on success, or why the action failed.
+         * @note NapCat fails with `ErrorKind::Action` when it finds no request with `flag`
+         * among the bot's invitations and its latest group notifications. Otherwise it does
+         * not check QQ's answer, so a refused request still succeeds.
+         */
+        [[nodiscard]] auto SetGroupAddRequest(
+            SetGroupAddRequestParams params
+        ) const -> drogon::Task<Result<void>>;
     };
 
     /**
