@@ -427,6 +427,16 @@ namespace drogon_onebot {
         [[nodiscard]] auto CanSendImage(
             CanSendImageParams params = {}
         ) const -> drogon::Task<Result<CanSend>>;
+
+        /**
+         * @brief Call `can_send_record`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding whether the implementation can send voice, or why the action failed.
+         * @note NapCat always answers yes.
+         */
+        [[nodiscard]] auto CanSendRecord(
+            CanSendRecordParams params = {}
+        ) const -> drogon::Task<Result<CanSend>>;
     };
 
     /**

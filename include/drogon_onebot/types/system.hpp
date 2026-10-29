@@ -14,7 +14,14 @@ namespace drogon_onebot {
     };
 
     /**
-     * @brief Answer of `can_send_image`.
+     * @brief Arguments of `OneBot::CanSendRecord()`.
+     */
+    struct CanSendRecordParams {
+        double timeout{ 30.0 }; ///< Seconds to wait for the response; 0 waits forever.
+    };
+
+    /**
+     * @brief Answer of `can_send_image` or `can_send_record`.
      */
     struct CanSend {
         bool yes{}; ///< Whether the implementation can send that kind of segment; NapCat always sends true.

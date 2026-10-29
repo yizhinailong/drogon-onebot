@@ -54,4 +54,26 @@ namespace drogon_onebot {
         co_return *answer;
     }
 
+    /**
+     * @brief Call `can_send_record`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding whether the implementation can send voice, or why the action failed.
+     * @note NapCat always answers yes.
+     */
+    auto OneBot::CanSendRecord(
+        CanSendRecordParams params
+    ) const -> drogon::Task<Result<CanSend>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        auto const data{ co_await transport->Call("can_send_record", Json::Value{ Json::objectValue }, params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        auto const answer{ to_can_send(*data) };
+        if (!answer) {
+            co_return std::unexpected{ details::invalid_data_error("can_send_record", answer.error(), *data) };
+        }
+        co_return *answer;
+    }
+
 } // namespace drogon_onebot

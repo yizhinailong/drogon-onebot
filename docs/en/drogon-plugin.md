@@ -157,6 +157,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetRecord(GetRecordParams)` | `get_record` | `FileInfo` (`file`) |
 | `GetImage(GetImageParams)` | `get_image` | `FileInfo` (`file`) |
 | `CanSendImage(CanSendImageParams)` | `can_send_image` | `CanSend` (`yes`) |
+| `CanSendRecord(CanSendRecordParams)` | `can_send_record` | `CanSend` (`yes`) |
 
 How typed actions read `data`:
 
@@ -194,7 +195,7 @@ NapCat's behavior with these actions:
 - `GetImage` takes the `file` of a received `image` segment. NapCat downloads the image and answers with `base64` only when its `enableLocalFile2Url` setting is on, which it is not by default. Its `url` is the image's URL at QQ when NapCat can get one, and the path otherwise.
 - `FileInfo::file` is a path on NapCat's host. When NapCat runs in a container, read the content from `base64` instead, or download the image from `url`.
 - NapCat looks `file` up among the media of the messages it has received, kept in memory until a day after their last use, and otherwise searches QQ's file assistant by that name. It fails with `Action` when neither has the file.
-- NapCat's `can_send_image` always answers `yes`.
+- NapCat's `can_send_image` and `can_send_record` always answer `yes`.
 
 ### Message segments
 

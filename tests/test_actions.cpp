@@ -852,6 +852,16 @@ namespace {
             return ok(data);
         });
         serve("/bad/can_send_image", [](auto const&) { return ok(Json::Value{ Json::objectValue }); });
+        serve("/can_send_record", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["yes"] = true;
+            return ok(data);
+        });
+        serve("/bad/can_send_record", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["yes"] = "true";
+            return ok(data);
+        });
         drogon::app().registerHandler(
             "/slow",
             [](drogon::HttpRequestPtr /*req*/) -> drogon::Task<drogon::HttpResponsePtr> {
@@ -1756,6 +1766,19 @@ DROGON_TEST(CanSendImageRejectsMissingAnswer) {
     REQUIRE(!able.has_value());
     CHECK(able.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
     CHECK(able.error().message.contains("yes is missing"));
+}
+
+DROGON_TEST(CanSendRecordReadsAnswer) {
+    auto const able{ drogon::sync_wait(plugin_bot().CanSendRecord()) };
+    REQUIRE(able.has_value());
+    CHECK(able->yes);
+}
+
+DROGON_TEST(CanSendRecordRejectsMistypedAnswer) {
+    auto const able{ drogon::sync_wait(bot_at("/bad").CanSendRecord()) };
+    REQUIRE(!able.has_value());
+    CHECK(able.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(able.error().message.contains("yes is not a boolean"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

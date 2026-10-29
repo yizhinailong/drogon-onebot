@@ -157,6 +157,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetRecord(GetRecordParams)` | `get_record` | `FileInfo`（`file`） |
 | `GetImage(GetImageParams)` | `get_image` | `FileInfo`（`file`） |
 | `CanSendImage(CanSendImageParams)` | `can_send_image` | `CanSend`（`yes`） |
+| `CanSendRecord(CanSendRecordParams)` | `can_send_record` | `CanSend`（`yes`） |
 
 类型化动作读取 `data` 的规则：
 
@@ -194,7 +195,7 @@ NapCat 在这些动作上的行为：
 - `GetImage` 接受收到的 `image` 消息段的 `file`。NapCat 下载图片，只有开启了 `enableLocalFile2Url` 设置（默认关闭）时才返回 `base64`。它的 `url` 在 NapCat 能获取到时是 QQ 上的图片地址，否则是本地路径。
 - `FileInfo::file` 是 NapCat 主机上的路径。NapCat 跑在容器里时，改从 `base64` 读取内容，或者从 `url` 下载图片。
 - NapCat 在它收到的消息的媒体里查找 `file`，这些记录在内存里保留到最后一次使用后一天；找不到时按这个名字在 QQ 的文件助手里搜索，仍找不到时以 `Action` 失败。
-- NapCat 的 `can_send_image` 总是回答 `yes`。
+- NapCat 的 `can_send_image` 和 `can_send_record` 总是回答 `yes`。
 
 ### 消息段
 
