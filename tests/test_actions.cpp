@@ -769,6 +769,7 @@ namespace {
         serve_setter("set_group_add_request", "No such request");
         serve_setter("set_restart", "restart is not initialized");
         serve("/async/set_restart", [](auto const&) { return envelope("async", 1, Json::Value{}, ""); });
+        serve_setter("clean_cache", "ENOENT: no such file or directory, scandir");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -1887,6 +1888,21 @@ DROGON_TEST(SetRestartPassesActionError) {
     REQUIRE(!restarted.has_value());
     CHECK(restarted.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(restarted.error().message.contains("restart is not initialized"));
+}
+
+DROGON_TEST(CleanCacheSendsNoParams) {
+    auto const cleaned{ drogon::sync_wait(plugin_bot().CleanCache()) };
+    CHECK(cleaned.has_value());
+    auto const clean{ sent_to("clean_cache") };
+    CHECK(clean.isObject());
+    CHECK(clean.empty());
+}
+
+DROGON_TEST(CleanCachePassesActionError) {
+    auto const cleaned{ drogon::sync_wait(bot_at("/failing").CleanCache()) };
+    REQUIRE(!cleaned.has_value());
+    CHECK(cleaned.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(cleaned.error().message.contains("no such file or directory"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

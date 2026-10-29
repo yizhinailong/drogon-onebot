@@ -468,6 +468,18 @@ namespace drogon_onebot {
         [[nodiscard]] auto SetRestart(
             SetRestartParams params = {}
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `clean_cache`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing once the implementation cleaned its cache, or why the action failed.
+         * @note NapCat deletes the files directly inside its temp directory and QQ's media and log
+         * directories, not their subdirectories. It only logs the files it cannot delete, and fails
+         * with `ErrorKind::Action` only when it cannot read its temp directory.
+         */
+        [[nodiscard]] auto CleanCache(
+            CleanCacheParams params = {}
+        ) const -> drogon::Task<Result<void>>;
     };
 
     /**

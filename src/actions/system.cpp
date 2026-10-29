@@ -179,4 +179,24 @@ namespace drogon_onebot {
         co_return Result<void>{};
     }
 
+    /**
+     * @brief Call `clean_cache`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding nothing once the implementation cleaned its cache, or why the action failed.
+     * @note NapCat deletes the files directly inside its temp directory and QQ's media and log
+     * directories, not their subdirectories. It only logs the files it cannot delete, and fails
+     * with `ErrorKind::Action` only when it cannot read its temp directory.
+     */
+    auto OneBot::CleanCache(
+        CleanCacheParams params
+    ) const -> drogon::Task<Result<void>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        auto const data{ co_await transport->Call("clean_cache", Json::Value{ Json::objectValue }, params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        co_return Result<void>{};
+    }
+
 } // namespace drogon_onebot

@@ -62,7 +62,7 @@
 - [x] `get_status`：运行状态
 - [x] `get_version_info`：版本信息
 - [x] `set_restart`：重启实现
-- [ ] `clean_cache`：清理缓存
+- [x] `clean_cache`：清理缓存
 
 ## 消息段构造函数
 

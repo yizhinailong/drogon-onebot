@@ -161,6 +161,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetStatus(GetStatusParams)` | `get_status` | `Status` (`online`, `good`) |
 | `GetVersionInfo(GetVersionInfoParams)` | `get_version_info` | `VersionInfo` (`app_name`, `app_version`, `protocol_version`) |
 | `SetRestart(SetRestartParams)` | `set_restart` | Nothing (`Result<void>`) |
+| `CleanCache(CleanCacheParams)` | `clean_cache` | Nothing (`Result<void>`) |
 
 How typed actions read `data`:
 
@@ -202,6 +203,7 @@ NapCat's behavior with these actions:
 - NapCat's `get_status` always answers `good` as true, even while the account is offline, so check `online`. It sets `online` to false when QQ takes the account offline. The standard sends `online` as null when the implementation cannot tell, which reads as an empty `std::optional`.
 - NapCat's `get_version_info` answers with `app_name` `NapCat.Onebot`, `protocol_version` `v11`, and its own version as `app_version`.
 - `SetRestart` always sends `delay`, 0 by default as in the standard; NapCat ignores it. NapCat answers `ok`, where the standard says `async` (both succeed), as soon as it has asked its master process for the restart. Its worker process then exits and a new one starts about 3 seconds later, so the HTTP API and event posts pause in between. Running in a single process (`NAPCAT_DISABLE_MULTI_PROCESS=1`) or as its framework build, NapCat cannot restart itself and fails with `Action`.
+- NapCat's `clean_cache` deletes the files directly inside its temp directory and inside QQ's `Pic`, `Ptt`, `Video`, `File`, and `log` data directories, but not their subdirectories. It only logs the files it cannot delete, and fails with `Action` only when it cannot read its temp directory. That directory also holds the downloaded media of messages that NapCat is still sending, so a clean at the same time may break such a send.
 
 ### Message segments
 

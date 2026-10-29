@@ -74,4 +74,11 @@ namespace drogon_onebot {
         double timeout{ 30.0 }; ///< Seconds to wait for the response; 0 waits forever.
     };
 
+    /**
+     * @brief Arguments of `OneBot::CleanCache()`.
+     */
+    struct CleanCacheParams {
+        double timeout{ 30.0 }; ///< Seconds to wait for the response; 0 waits forever.
+    };
+
 } // namespace drogon_onebot
