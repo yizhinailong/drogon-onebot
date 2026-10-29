@@ -18,6 +18,7 @@
 
 #include "details/json.hpp"
 #include "drogon_onebot/types/message.hpp"
+#include "drogon_onebot/types/system.hpp"
 
 namespace drogon_onebot::details {
 
@@ -162,5 +163,12 @@ namespace drogon_onebot::details {
         }
         return items;
     }
+
+    /**
+     * @brief Read a running status: the `data` of `get_status`, or the `status` of a heartbeat.
+     * @param value Object to read.
+     * @return The status, or the first problem found, e.g. `good is missing`.
+     */
+    [[nodiscard]] auto read_status(Json::Value const& value) -> std::expected<Status, std::string>;
 
 } // namespace drogon_onebot::details

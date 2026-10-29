@@ -119,4 +119,22 @@ namespace drogon_onebot::details {
         }
     }
 
+    /**
+     * @brief Read a running status: the `data` of `get_status`, or the `status` of a heartbeat.
+     * @param value Object to read.
+     * @return The status, or the first problem found, e.g. `good is missing`.
+     */
+    auto read_status(Json::Value const& value) -> std::expected<Status, std::string> {
+        FieldReader fields{ value };
+        Status status{
+            .online = fields.NullableBool("online"),
+            .good = fields.RequiredBool("good"),
+            .raw = value,
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return status;
+    }
+
 } // namespace drogon_onebot::details

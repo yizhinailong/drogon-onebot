@@ -484,6 +484,16 @@ namespace {
             .sub_type = fields.String("sub_type"),
             .raw = root,
         };
+        if (event.meta_event_type == "heartbeat") {
+            event.interval = fields.RequiredInteger<std::int64_t>("interval");
+            auto status{ drogon_onebot::details::read_status(drogon_onebot::details::member(root, "status")) };
+            if (fields.Problem().empty() && !status) {
+                return std::unexpected{ std::format("meta event: status.{}", status.error()) };
+            }
+            if (status) {
+                event.status = std::move(*status);
+            }
+        }
         return finish(fields, "meta", std::move(event));
     }
 

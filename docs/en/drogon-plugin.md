@@ -266,14 +266,15 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 | `OnMessage(MessageHandler)` | `message` | `MessageEvent` | `message_type`, `sub_type`, `message_id`, `user_id`, `group_id` (group messages only), `message`, `raw_message`, `font`, `sender` |
 | `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`, `sub_type`, `detail` (see "Notice details") |
 | `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`, `sub_type`, `user_id`, `group_id` (group requests only), `comment`, `flag` |
-| `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`, `sub_type` |
+| `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`, `sub_type`, `status` and `interval` (heartbeats only) |
 
-- Every event has `time`, `self_id`, and the whole original event in `raw` (`Json::Value`). Read the fields that have no member of their own from `raw`, such as the `card_new` of NapCat's `group_card` notice or the `interval` of a heartbeat.
+- Every event has `time`, `self_id`, and the whole original event in `raw` (`Json::Value`). Read the fields that have no member of their own from `raw`, such as the `card_new` of NapCat's `group_card` notice.
 - The callback type is `std::function<drogon::Task<>(Event)>`.
 - Other `post_type` values, such as the `message_sent` that NapCat reports when `reportSelfMessage` is on, get 204 and are dropped.
 - NapCat sometimes sends `user_id` and `group_id` as strings. They are parsed as numbers.
 - A request event without `user_id` or `flag`, or a group request without `group_id`, gets 400. NapCat reports only friend requests that are unread, that the bot did not send, and that are not decided yet.
 - For a group request, `sub_type` `add` is a request to join, where `user_id` is the requester, and `invite` invites the bot account, where `user_id` is the inviter. NapCat also reports as `add` a member's invitation of someone else that needs an admin's approval.
+- A heartbeat has `status`, a `Status` like the one that `GetStatus` returns, and `interval`, the milliseconds until the next heartbeat; one without them gets 400. NapCat sends meta events only over WebSocket, so with HTTP POST reporting, `OnMetaEvent` never runs for it.
 
 ### Notice details
 
@@ -351,7 +352,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 - The typed actions are listed in the table under "Calling actions". Use `CallAction` for the other actions for now.
 - `set_group_anonymous` and `set_group_anonymous_ban` have no typed method, because NapCat does not register them.
 - `shake`, `anonymous`, `share`, `poke`, `xml`, `location`, and custom `music` have no `MessageSegment` function, because NapCat cannot send them. It rejects `shake`, `anonymous`, `share`, and custom `music`, drops `poke` and `xml`, and sends `location` without its coordinates. For other implementations, build them through `type` and `data`. NapCat pokes through its own actions, such as `group_poke`, which `CallAction` reaches.
-- Only the notices under "Notice details" have typed fields of their own. For the other notices and for meta events, only the common fields and the subtypes are typed. Read the other fields from `raw`.
+- Only the notices under "Notice details" have typed fields of their own. For the other notices, only the common fields and the subtypes are typed. Read the other fields from `raw`.
 - `MessageEvent::anonymous`, the `Sender` fields `sex`, `age`, `area`, `level`, and `title`, and the `notify` notices `lucky_king` and `honor` have no typed member, because NapCat never sends them. For other implementations, read them from `raw`.
 
 ## Tests

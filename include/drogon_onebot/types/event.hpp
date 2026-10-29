@@ -12,6 +12,7 @@
 #include <json/value.h>
 
 #include "drogon_onebot/types/message.hpp"
+#include "drogon_onebot/types/system.hpp"
 
 namespace drogon_onebot {
 
@@ -168,11 +169,13 @@ namespace drogon_onebot {
      * @brief Event with `post_type` `meta_event`: the OneBot implementation's lifecycle and heartbeat.
      */
     struct MetaEvent {
-        std::int64_t time{};         ///< Unix time in seconds when the event happened.
-        std::int64_t self_id{};      ///< QQ number of the bot account that sent the event.
-        std::string meta_event_type; ///< `lifecycle` or `heartbeat`.
-        std::string sub_type;        ///< `enable`, `disable`, or `connect` for lifecycle events; empty for heartbeats.
-        Json::Value raw;             ///< Whole event as received, e.g. `status` and `interval` of a heartbeat.
+        std::int64_t time{};          ///< Unix time in seconds when the event happened.
+        std::int64_t self_id{};       ///< QQ number of the bot account that sent the event.
+        std::string meta_event_type;  ///< `lifecycle` or `heartbeat`.
+        std::string sub_type;         ///< `enable`, `disable`, or `connect` for lifecycle events; empty for heartbeats.
+        std::optional<Status> status; ///< Status of the implementation in a heartbeat, as `OneBot::GetStatus()` yields it; empty for other meta events.
+        std::int64_t interval{};      ///< Milliseconds until the next heartbeat; 0 for other meta events.
+        Json::Value raw;              ///< Whole event as received, for fields without a member here.
     };
 
 } // namespace drogon_onebot

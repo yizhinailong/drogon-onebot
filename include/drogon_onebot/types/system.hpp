@@ -41,12 +41,12 @@ namespace drogon_onebot {
     };
 
     /**
-     * @brief Running status of the OneBot implementation, from `get_status`.
+     * @brief Running status of the OneBot implementation, from `get_status` or a heartbeat.
      */
     struct Status {
         std::optional<bool> online; ///< Whether the QQ account is online; empty when the implementation cannot tell, which it sends as null.
         bool good{};                ///< Whether every module works as expected and the account is online; NapCat always sends true.
-        Json::Value raw;            ///< Whole `data` as received, for the fields that the implementation adds, e.g. NapCat's empty `stat`.
+        Json::Value raw;            ///< Whole `data`, or a heartbeat's `status`, as received, for the fields that the implementation adds, e.g. NapCat's empty `stat`.
     };
 
     /**

@@ -100,4 +100,4 @@
 
 元事件：
 
-- [ ] `heartbeat`：`status`、`interval`
+- [x] `heartbeat`：`status`、`interval`

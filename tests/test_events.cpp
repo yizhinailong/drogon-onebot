@@ -360,14 +360,15 @@ DROGON_TEST(DispatchesNoticeRequestAndMetaEvents) {
     CHECK(!g_requests.Pop(test_support::NO_EVENT_WAIT).has_value());
 
     auto meta_json{ base_event("meta_event") };
-    meta_json["meta_event_type"] = "heartbeat";
-    meta_json["interval"] = 30000;
-    meta_json["status"]["online"] = true;
+    meta_json["meta_event_type"] = "lifecycle";
+    meta_json["sub_type"] = "connect";
     CHECK(post_signed(meta_json)->getStatusCode() == drogon::k204NoContent);
     auto const meta{ g_meta_events.Pop(test_support::EVENT_WAIT) };
     REQUIRE(meta.has_value());
-    CHECK(meta->meta_event_type == "heartbeat");
-    CHECK(meta->raw["interval"].asInt() == 30000);
+    CHECK(meta->meta_event_type == "lifecycle");
+    CHECK(meta->sub_type == "connect");
+    CHECK(!meta->status.has_value());
+    CHECK(meta->interval == 0);
 
     auto no_type{ base_event("notice") };
     CHECK(post_signed(no_type)->getStatusCode() == drogon::k400BadRequest);
@@ -581,6 +582,27 @@ DROGON_TEST(ParsesGroupRequest) {
     CHECK(response->getStatusCode() == drogon::k400BadRequest);
     CHECK(std::string{ response->body() }.contains("group_id is missing"));
     CHECK(!g_requests.Pop(test_support::NO_EVENT_WAIT).has_value());
+}
+
+DROGON_TEST(ParsesHeartbeat) {
+    auto heartbeat_json{ base_event("meta_event") };
+    heartbeat_json["meta_event_type"] = "heartbeat";
+    heartbeat_json["interval"] = 30000;
+    heartbeat_json["status"]["online"] = true;
+    heartbeat_json["status"]["good"] = true;
+    CHECK(post_signed(heartbeat_json)->getStatusCode() == drogon::k204NoContent);
+    auto const heartbeat{ g_meta_events.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(heartbeat.has_value());
+    CHECK(heartbeat->interval == 30000);
+    REQUIRE(heartbeat->status.has_value());
+    CHECK(heartbeat->status->online == true);
+    CHECK(heartbeat->status->good);
+
+    heartbeat_json["status"].removeMember("good");
+    auto const response{ post_signed(heartbeat_json) };
+    CHECK(response->getStatusCode() == drogon::k400BadRequest);
+    CHECK(std::string{ response->body() }.contains("status.good is missing"));
+    CHECK(!g_meta_events.Pop(test_support::NO_EVENT_WAIT).has_value());
 }
 
 DROGON_TEST(DropsUnknownPostType) {

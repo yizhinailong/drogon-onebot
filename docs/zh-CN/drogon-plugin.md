@@ -266,14 +266,15 @@ if (!sent) {
 | `OnMessage(MessageHandler)` | `message` | `MessageEvent` | `message_type`、`sub_type`、`message_id`、`user_id`、`group_id`（仅群消息）、`message`、`raw_message`、`font`、`sender` |
 | `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`、`sub_type`、`detail`（见“通知详情”） |
 | `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`、`sub_type`、`user_id`、`group_id`（仅群请求）、`comment`、`flag` |
-| `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`、`sub_type` |
+| `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`、`sub_type`、`status` 和 `interval`（仅心跳） |
 
-- 每种事件都有 `time`、`self_id`，以及完整原始事件 `raw`（`Json::Value`）。没有单独成员的字段从 `raw` 读取，例如 NapCat `group_card` 通知的 `card_new`、心跳的 `interval`。
+- 每种事件都有 `time`、`self_id`，以及完整原始事件 `raw`（`Json::Value`）。没有单独成员的字段从 `raw` 读取，例如 NapCat `group_card` 通知的 `card_new`。
 - 回调类型是 `std::function<drogon::Task<>(Event)>`。
 - 其他 `post_type`，例如开启 `reportSelfMessage` 后 NapCat 上报的 `message_sent`，回 204 后丢弃。
 - NapCat 有时把 `user_id`、`group_id` 发成字符串，解析时按数字读取。
 - 请求事件缺少 `user_id` 或 `flag`，或群请求缺少 `group_id` 时返回 400。NapCat 只上报未读、不是机器人自己发起、尚未处理的好友请求。
 - 群请求的 `sub_type` 为 `add` 时是加群申请，`user_id` 是申请人；为 `invite` 时是邀请机器人入群，`user_id` 是邀请人。群成员邀请别人入群、需要管理员审核时，NapCat 也报为 `add`。
+- 心跳带 `status` 和 `interval`：`status` 是与 `GetStatus` 返回值相同的 `Status`，`interval` 是到下一次心跳的毫秒数；缺少它们时返回 400。NapCat 只通过 WebSocket 发送元事件，所以使用 HTTP POST 上报时，对 NapCat 来说 `OnMetaEvent` 永远不会运行。
 
 ### 通知详情
 
@@ -351,7 +352,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 - 类型化动作见“调用动作”一节的表格，其余动作先用 `CallAction`。
 - `set_group_anonymous` 和 `set_group_anonymous_ban` 没有类型化方法，因为 NapCat 没有注册这两个动作。
 - `shake`、`anonymous`、`share`、`poke`、`xml`、`location` 和自定义 `music` 没有 `MessageSegment` 函数，因为 NapCat 发不出这些消息段：它拒绝 `shake`、`anonymous`、`share` 和自定义 `music`，丢弃 `poke` 和 `xml`，发送 `location` 时不带坐标。其他实现可以通过 `type` 和 `data` 构造。NapCat 用自己的动作戳一戳，例如 `group_poke`，可以通过 `CallAction` 调用。
-- 只有“通知详情”里列出的通知有自己的类型化字段。其他通知以及元事件，只有公共字段和子类型是类型化的，其余字段从 `raw` 读取。
+- 只有“通知详情”里列出的通知有自己的类型化字段。其他通知只有公共字段和子类型是类型化的，其余字段从 `raw` 读取。
 - `MessageEvent::anonymous`，`Sender` 的 `sex`、`age`、`area`、`level`、`title`，以及 `notify` 通知里的 `lucky_king` 和 `honor` 没有类型化成员，因为 NapCat 从不发送它们。其他实现发送的这些字段从 `raw` 读取。
 
 ## 测试

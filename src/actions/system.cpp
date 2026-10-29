@@ -30,24 +30,6 @@ namespace {
     }
 
     /**
-     * @brief Read the `data` of `get_status`.
-     * @param data Object to read.
-     * @return The status, or the first problem found, e.g. `good is missing`.
-     */
-    auto to_status(Json::Value const& data) -> std::expected<drogon_onebot::Status, std::string> {
-        drogon_onebot::details::FieldReader fields{ data };
-        drogon_onebot::Status status{
-            .online = fields.NullableBool("online"),
-            .good = fields.RequiredBool("good"),
-            .raw = data,
-        };
-        if (!fields.Problem().empty()) {
-            return std::unexpected{ fields.Problem() };
-        }
-        return status;
-    }
-
-    /**
      * @brief Read the `data` of `get_version_info`.
      * @param data Object to read.
      * @return The version, or the first problem found, e.g. `app_name is missing`.
@@ -129,7 +111,7 @@ namespace drogon_onebot {
         if (!data) {
             co_return std::unexpected{ data.error() };
         }
-        auto status{ to_status(*data) };
+        auto status{ details::read_status(*data) };
         if (!status) {
             co_return std::unexpected{ details::invalid_data_error("get_status", status.error(), *data) };
         }
