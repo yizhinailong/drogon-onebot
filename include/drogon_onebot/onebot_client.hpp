@@ -221,6 +221,17 @@ namespace drogon_onebot {
         [[nodiscard]] auto SetGroupKick(
             SetGroupKickParams params
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `set_group_ban`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing on success, or why the action failed.
+         * @note NapCat fails with `ErrorKind::Action` for a member not in the group, for the
+         * group owner, and for an admin unless the bot account owns the group.
+         */
+        [[nodiscard]] auto SetGroupBan(
+            SetGroupBanParams params
+        ) const -> drogon::Task<Result<void>>;
     };
 
     /**

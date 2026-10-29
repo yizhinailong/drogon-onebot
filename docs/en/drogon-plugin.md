@@ -138,6 +138,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo` (`group_id`, `group_name`, `member_count`, `max_member_count`) |
 | `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo` (`card`, `role`, `level`, `title`, and the other fields of the standard) |
 | `SetGroupKick(SetGroupKickParams)` | `set_group_kick` | Nothing (`Result<void>`) |
+| `SetGroupBan(SetGroupBanParams)` | `set_group_ban` | Nothing (`Result<void>`) |
 
 How typed actions read `data`:
 
@@ -160,6 +161,7 @@ NapCat's behavior with these actions:
 - `SendLike` always sends `times`, 1 by default; the standard allows 10 likes per friend a day. NapCat answers a successful `send_like` without `data`, and reports a like that QQ refuses as `Action`.
 - The group setters (`SetGroup*`) always send the parameters that the standard gives a default, with that default, so the result does not depend on the implementation's own defaults.
 - NapCat does not check QQ's answer for `set_group_kick`, so a removal that QQ refuses, for example without admin rights, still succeeds.
+- `SetGroupBan` sends `duration` in seconds, 30 minutes by default as in the standard; 0 lifts the mute. NapCat's own default is 0. NapCat fails with `Action` for a member not in the group, for the owner, and for an admin unless the bot account owns the group.
 
 ### Message segments
 

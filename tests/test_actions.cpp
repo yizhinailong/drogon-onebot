@@ -518,6 +518,7 @@ namespace {
         });
         serve("/bad/get_stranger_info", [](auto const&) { return ok(Json::Value{}); });
         serve_setter("set_group_kick", "get Uid Error");
+        serve_setter("set_group_ban", "cannot ban owner");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -947,6 +948,31 @@ DROGON_TEST(SetGroupKickPassesActionError) {
     REQUIRE(!kicked.has_value());
     CHECK(kicked.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(kicked.error().message.contains("get Uid Error"));
+}
+
+DROGON_TEST(SetGroupBanSendsDuration) {
+    auto const muted{ drogon::sync_wait(plugin_bot().SetGroupBan({ .group_id = TARGET_GROUP, .user_id = TARGET_USER })) };
+    CHECK(muted.has_value());
+    auto const mute{ sent_to("set_group_ban") };
+    CHECK(mute["group_id"].asInt64() == TARGET_GROUP);
+    CHECK(mute["user_id"].asInt64() == TARGET_USER);
+    CHECK(mute["duration"].isIntegral());
+    CHECK(mute["duration"].asInt() == 1800);
+
+    auto const lifted{
+        drogon::sync_wait(plugin_bot().SetGroupBan({ .group_id = TARGET_GROUP, .user_id = TARGET_USER, .duration = 0 }))
+    };
+    CHECK(lifted.has_value());
+    auto const lift{ sent_to("set_group_ban") };
+    CHECK(lift["duration"].isIntegral());
+    CHECK(lift["duration"].asInt() == 0);
+}
+
+DROGON_TEST(SetGroupBanPassesActionError) {
+    auto const muted{ drogon::sync_wait(bot_at("/failing").SetGroupBan({ .group_id = TARGET_GROUP, .user_id = TARGET_USER })) };
+    REQUIRE(!muted.has_value());
+    CHECK(muted.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(muted.error().message.contains("cannot ban owner"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {
