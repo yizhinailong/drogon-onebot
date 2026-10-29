@@ -447,6 +447,15 @@ namespace drogon_onebot {
         [[nodiscard]] auto GetStatus(
             GetStatusParams params = {}
         ) const -> drogon::Task<Result<Status>>;
+
+        /**
+         * @brief Call `get_version_info`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the implementation's name and version, or why the action failed.
+         */
+        [[nodiscard]] auto GetVersionInfo(
+            GetVersionInfoParams params = {}
+        ) const -> drogon::Task<Result<VersionInfo>>;
     };
 
     /**

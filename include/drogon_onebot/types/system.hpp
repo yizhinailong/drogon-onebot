@@ -5,6 +5,7 @@
 #pragma once
 
 #include <optional>
+#include <string>
 
 #include <json/value.h>
 
@@ -45,6 +46,23 @@ namespace drogon_onebot {
         std::optional<bool> online; ///< Whether the QQ account is online; empty when the implementation cannot tell, which it sends as null.
         bool good{};                ///< Whether every module works as expected and the account is online; NapCat always sends true.
         Json::Value raw;            ///< Whole `data` as received, for the fields that the implementation adds, e.g. NapCat's empty `stat`.
+    };
+
+    /**
+     * @brief Arguments of `OneBot::GetVersionInfo()`.
+     */
+    struct GetVersionInfoParams {
+        double timeout{ 30.0 }; ///< Seconds to wait for the response; 0 waits forever.
+    };
+
+    /**
+     * @brief Version of the OneBot implementation, from `get_version_info`.
+     */
+    struct VersionInfo {
+        std::string app_name;         ///< Name of the implementation; NapCat sends `NapCat.Onebot`.
+        std::string app_version;      ///< Version of the implementation, e.g. `1.2.3`.
+        std::string protocol_version; ///< OneBot version that it implements; NapCat sends `v11`.
+        Json::Value raw;              ///< Whole `data` as received, for the fields that the implementation adds.
     };
 
 } // namespace drogon_onebot

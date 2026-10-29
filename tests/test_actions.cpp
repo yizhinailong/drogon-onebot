@@ -886,6 +886,19 @@ namespace {
             data["good"] = true;
             return ok(data);
         });
+        serve("/get_version_info", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["app_name"] = "NapCat.Onebot";
+            data["protocol_version"] = "v11";
+            data["app_version"] = "4.9.0";
+            return ok(data);
+        });
+        serve("/bad/get_version_info", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["protocol_version"] = "v11";
+            data["app_version"] = "4.9.0";
+            return ok(data);
+        });
         drogon::app().registerHandler(
             "/slow",
             [](drogon::HttpRequestPtr /*req*/) -> drogon::Task<drogon::HttpResponsePtr> {
@@ -1830,6 +1843,22 @@ DROGON_TEST(GetStatusRejectsInvalidStatus) {
     REQUIRE(!mistyped.has_value());
     CHECK(mistyped.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
     CHECK(mistyped.error().message.contains("online is not a boolean"));
+}
+
+DROGON_TEST(GetVersionInfoReadsVersion) {
+    auto const version{ drogon::sync_wait(plugin_bot().GetVersionInfo()) };
+    REQUIRE(version.has_value());
+    CHECK(version->app_name == "NapCat.Onebot");
+    CHECK(version->app_version == "4.9.0");
+    CHECK(version->protocol_version == "v11");
+    CHECK(version->raw["app_name"].asString() == "NapCat.Onebot");
+}
+
+DROGON_TEST(GetVersionInfoRejectsMissingName) {
+    auto const version{ drogon::sync_wait(bot_at("/bad").GetVersionInfo()) };
+    REQUIRE(!version.has_value());
+    CHECK(version.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(version.error().message.contains("app_name is missing"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

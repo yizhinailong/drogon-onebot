@@ -159,14 +159,15 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `CanSendImage(CanSendImageParams)` | `can_send_image` | `CanSend` (`yes`) |
 | `CanSendRecord(CanSendRecordParams)` | `can_send_record` | `CanSend` (`yes`) |
 | `GetStatus(GetStatusParams)` | `get_status` | `Status` (`online`, `good`) |
+| `GetVersionInfo(GetVersionInfoParams)` | `get_version_info` | `VersionInfo` (`app_name`, `app_version`, `protocol_version`) |
 
 How typed actions read `data`:
 
-- The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, `messages`, `cookies`, `token`, `csrf_token`, `file`, `yes`, `good`, and `sender.user_id`, depending on the action.
+- The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, `messages`, `cookies`, `token`, `csrf_token`, `file`, `yes`, `good`, `app_name`, and `sender.user_id`, depending on the action.
 - When a required field is missing or null, or any field has the wrong type (including the null `data` of `async`), the action returns a `ResponseValidation` error whose `body` is that `data`. For the list actions, the error names the entry, for example `data[1].nickname is missing`.
 - Other fields read as empty, 0, or false when the implementation leaves them out.
 - Integer fields accept both JSON numbers and decimal strings.
-- `StrangerInfo`, `MessageInfo`, `GroupInfo`, `GroupMemberInfo`, `FriendInfo`, `Cookies`, `FileInfo`, and `Status` keep the whole `data`, or the whole list entry, in `raw`, for the fields that have no member of their own, such as NapCat's `qid`, `group_remark`, and `is_robot`.
+- `StrangerInfo`, `MessageInfo`, `GroupInfo`, `GroupMemberInfo`, `FriendInfo`, `Cookies`, `FileInfo`, `Status`, and `VersionInfo` keep the whole `data`, or the whole list entry, in `raw`, for the fields that have no member of their own, such as NapCat's `qid`, `group_remark`, and `is_robot`.
 
 NapCat's behavior with these actions:
 
@@ -198,6 +199,7 @@ NapCat's behavior with these actions:
 - NapCat looks `file` up among the media of the messages it has received, kept in memory until a day after their last use, and otherwise searches QQ's file assistant by that name. It fails with `Action` when neither has the file.
 - NapCat's `can_send_image` and `can_send_record` always answer `yes`.
 - NapCat's `get_status` always answers `good` as true, even while the account is offline, so check `online`. It sets `online` to false when QQ takes the account offline. The standard sends `online` as null when the implementation cannot tell, which reads as an empty `std::optional`.
+- NapCat's `get_version_info` answers with `app_name` `NapCat.Onebot`, `protocol_version` `v11`, and its own version as `app_version`.
 
 ### Message segments
 

@@ -159,14 +159,15 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `CanSendImage(CanSendImageParams)` | `can_send_image` | `CanSend`（`yes`） |
 | `CanSendRecord(CanSendRecordParams)` | `can_send_record` | `CanSend`（`yes`） |
 | `GetStatus(GetStatusParams)` | `get_status` | `Status`（`online`、`good`） |
+| `GetVersionInfo(GetVersionInfoParams)` | `get_version_info` | `VersionInfo`（`app_name`、`app_version`、`protocol_version`） |
 
 类型化动作读取 `data` 的规则：
 
-- ID 和主要的名称或内容字段是必需的：视动作而定，包括 `user_id`、`group_id`、`nickname`、`group_name`、`message_type`、`message_id`、`message`、`messages`、`cookies`、`token`、`csrf_token`、`file`、`yes`、`good` 和 `sender.user_id`。
+- ID 和主要的名称或内容字段是必需的：视动作而定，包括 `user_id`、`group_id`、`nickname`、`group_name`、`message_type`、`message_id`、`message`、`messages`、`cookies`、`token`、`csrf_token`、`file`、`yes`、`good`、`app_name` 和 `sender.user_id`。
 - 必需字段缺失或为 null，或任一字段类型不对（包括 `async` 时的 null `data`）时，返回 `ResponseValidation` 错误，`body` 是该 `data`。列表类动作的错误会指出是哪一项，例如 `data[1].nickname is missing`。
 - 其他字段在实现没有给出时读作空字符串、0 或 false。
 - 整数字段同时接受 JSON 数字和十进制字符串。
-- `StrangerInfo`、`MessageInfo`、`GroupInfo`、`GroupMemberInfo`、`FriendInfo`、`Cookies`、`FileInfo`、`Status` 在 `raw` 里保留完整的 `data` 或列表项，没有单独成员的字段从这里读取，例如 NapCat 的 `qid`、`group_remark`、`is_robot`。
+- `StrangerInfo`、`MessageInfo`、`GroupInfo`、`GroupMemberInfo`、`FriendInfo`、`Cookies`、`FileInfo`、`Status`、`VersionInfo` 在 `raw` 里保留完整的 `data` 或列表项，没有单独成员的字段从这里读取，例如 NapCat 的 `qid`、`group_remark`、`is_robot`。
 
 NapCat 在这些动作上的行为：
 
@@ -198,6 +199,7 @@ NapCat 在这些动作上的行为：
 - NapCat 在它收到的消息的媒体里查找 `file`，这些记录在内存里保留到最后一次使用后一天；找不到时按这个名字在 QQ 的文件助手里搜索，仍找不到时以 `Action` 失败。
 - NapCat 的 `can_send_image` 和 `can_send_record` 总是回答 `yes`。
 - NapCat 的 `get_status` 总是把 `good` 答作 true，账号离线时也一样，所以要看 `online`。QQ 让账号下线时，NapCat 把 `online` 置为 false。标准规定实现无法查询在线状态时 `online` 为 null，这时读作空的 `std::optional`。
+- NapCat 的 `get_version_info` 回答的 `app_name` 是 `NapCat.Onebot`，`protocol_version` 是 `v11`，`app_version` 是 NapCat 自己的版本。
 
 ### 消息段
 

@@ -47,6 +47,25 @@ namespace {
         return status;
     }
 
+    /**
+     * @brief Read the `data` of `get_version_info`.
+     * @param data Object to read.
+     * @return The version, or the first problem found, e.g. `app_name is missing`.
+     */
+    auto to_version_info(Json::Value const& data) -> std::expected<drogon_onebot::VersionInfo, std::string> {
+        drogon_onebot::details::FieldReader fields{ data };
+        drogon_onebot::VersionInfo info{
+            .app_name = fields.RequiredString("app_name"),
+            .app_version = fields.String("app_version"),
+            .protocol_version = fields.String("protocol_version"),
+            .raw = data,
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return info;
+    }
+
 } // namespace
 
 namespace drogon_onebot {
@@ -115,6 +134,27 @@ namespace drogon_onebot {
             co_return std::unexpected{ details::invalid_data_error("get_status", status.error(), *data) };
         }
         co_return std::move(*status);
+    }
+
+    /**
+     * @brief Call `get_version_info`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the implementation's name and version, or why the action failed.
+     */
+    auto OneBot::GetVersionInfo(
+        GetVersionInfoParams params
+    ) const -> drogon::Task<Result<VersionInfo>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        auto const data{ co_await transport->Call("get_version_info", Json::Value{ Json::objectValue }, params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        auto info{ to_version_info(*data) };
+        if (!info) {
+            co_return std::unexpected{ details::invalid_data_error("get_version_info", info.error(), *data) };
+        }
+        co_return std::move(*info);
     }
 
 } // namespace drogon_onebot
