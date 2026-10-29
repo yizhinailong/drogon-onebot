@@ -116,4 +116,13 @@ namespace drogon_onebot {
         double timeout{ 30.0 };  ///< Seconds to wait for the response; 0 waits forever.
     };
 
+    /**
+     * @brief Arguments of `OneBot::SetGroupName()`.
+     */
+    struct SetGroupNameParams {
+        std::int64_t group_id{}; ///< Group number.
+        std::string group_name;  ///< New group name.
+        double timeout{ 30.0 };  ///< Seconds to wait for the response; 0 waits forever.
+    };
+
 } // namespace drogon_onebot

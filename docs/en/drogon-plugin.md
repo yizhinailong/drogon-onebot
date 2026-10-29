@@ -142,6 +142,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `SetGroupWholeBan(SetGroupWholeBanParams)` | `set_group_whole_ban` | Nothing (`Result<void>`) |
 | `SetGroupAdmin(SetGroupAdminParams)` | `set_group_admin` | Nothing (`Result<void>`) |
 | `SetGroupCard(SetGroupCardParams)` | `set_group_card` | Nothing (`Result<void>`) |
+| `SetGroupName(SetGroupNameParams)` | `set_group_name` | Nothing (`Result<void>`) |
 
 How typed actions read `data`:
 

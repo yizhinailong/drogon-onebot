@@ -142,6 +142,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `SetGroupWholeBan(SetGroupWholeBanParams)` | `set_group_whole_ban` | 无（`Result<void>`） |
 | `SetGroupAdmin(SetGroupAdminParams)` | `set_group_admin` | 无（`Result<void>`） |
 | `SetGroupCard(SetGroupCardParams)` | `set_group_card` | 无（`Result<void>`） |
+| `SetGroupName(SetGroupNameParams)` | `set_group_name` | 无（`Result<void>`） |
 
 类型化动作读取 `data` 的规则：
 

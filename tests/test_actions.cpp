@@ -522,6 +522,7 @@ namespace {
         serve_setter("set_group_whole_ban", "SetGroupWholeBan failed: ERR_NOT_GROUP_ADMIN");
         serve_setter("set_group_admin", "get Uid Error");
         serve_setter("set_group_card", "group card not applied");
+        serve_setter("set_group_name", "set group name failed");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -1052,6 +1053,23 @@ DROGON_TEST(SetGroupCardPassesActionError) {
     REQUIRE(!renamed.has_value());
     CHECK(renamed.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(renamed.error().message.contains("group card not applied"));
+}
+
+DROGON_TEST(SetGroupNameSendsName) {
+    auto const renamed{ drogon::sync_wait(plugin_bot().SetGroupName({ .group_id = TARGET_GROUP, .group_name = "new name" })) };
+    CHECK(renamed.has_value());
+    auto const body{ sent_to("set_group_name") };
+    CHECK(body["group_id"].asInt64() == TARGET_GROUP);
+    CHECK(body["group_name"].asString() == "new name");
+}
+
+DROGON_TEST(SetGroupNamePassesActionError) {
+    auto const renamed{
+        drogon::sync_wait(bot_at("/failing").SetGroupName({ .group_id = TARGET_GROUP, .group_name = "new name" }))
+    };
+    REQUIRE(!renamed.has_value());
+    CHECK(renamed.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(renamed.error().message.contains("set group name failed"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

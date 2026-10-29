@@ -264,6 +264,16 @@ namespace drogon_onebot {
         [[nodiscard]] auto SetGroupCard(
             SetGroupCardParams params
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `set_group_name`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing on success, or why the action failed.
+         * @note NapCat reports QQ's refusal as `ErrorKind::Action`.
+         */
+        [[nodiscard]] auto SetGroupName(
+            SetGroupNameParams params
+        ) const -> drogon::Task<Result<void>>;
     };
 
     /**
