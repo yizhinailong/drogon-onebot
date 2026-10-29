@@ -39,7 +39,7 @@
 
 信息查询：
 
-- [ ] `get_friend_list`：好友列表
+- [x] `get_friend_list`：好友列表
 - [ ] `get_group_list`：群列表
 - [ ] `get_group_member_list`：群成员列表
 - [ ] `get_group_honor_info`：群荣誉信息

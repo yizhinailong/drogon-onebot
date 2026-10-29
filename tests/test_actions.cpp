@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include <drogon/drogon.h>
@@ -247,6 +248,36 @@ namespace {
         data["is_vip"] = false;
         data["login_days"] = 0;
         data["request"] = request;
+        return data;
+    }
+
+    /**
+     * @brief Build NapCat's `get_friend_list` data, plus the request body under `request` in each entry.
+     * @param request Body of the request, echoed so tests can check what was sent.
+     * @return `TARGET_USER` with a remark, then `SELF_ID + 1` without one, as NapCat builds them.
+     */
+    auto friend_list(Json::Value const& request) -> Json::Value {
+        Json::Value data{ Json::arrayValue };
+        for (auto const& [user_id, nickname, remark] : {
+                 std::tuple{ TARGET_USER, "alice", "Alice from work" },
+                 std::tuple{ SELF_ID + 1, "bob", "" },
+             }) {
+            Json::Value entry{ Json::objectValue };
+            entry["birthday_year"] = 2000;
+            entry["birthday_month"] = 1;
+            entry["birthday_day"] = 1;
+            entry["user_id"] = user_id;
+            entry["age"] = 26;
+            entry["phone_num"] = "";
+            entry["email"] = "";
+            entry["category_id"] = 0;
+            entry["nickname"] = nickname;
+            entry["remark"] = remark;
+            entry["sex"] = "unknown";
+            entry["level"] = 30;
+            entry["request"] = request;
+            data.append(entry);
+        }
         return data;
     }
 
@@ -517,6 +548,15 @@ namespace {
             return known_id_or_failed(req, "user_id", TARGET_USER, stranger_info(body_of(req)));
         });
         serve("/bad/get_stranger_info", [](auto const&) { return ok(Json::Value{}); });
+        serve("/get_friend_list", [](drogon::HttpRequestPtr const& req) { return ok(friend_list(body_of(req))); });
+        serve("/bad/get_friend_list", [](drogon::HttpRequestPtr const& req) {
+            auto data{ friend_list(body_of(req)) };
+            data[1].removeMember("nickname");
+            return ok(data);
+        });
+        serve("/failing/get_friend_list", [](auto const&) {
+            return envelope("failed", FAILED_RETCODE, Json::Value{}, "get friend list failed");
+        });
         serve_setter("set_group_kick", "get Uid Error");
         serve_setter("set_group_ban", "cannot ban owner");
         serve_setter("set_group_whole_ban", "SetGroupWholeBan failed: ERR_NOT_GROUP_ADMIN");
@@ -888,6 +928,32 @@ DROGON_TEST(SendLikePassesActionError) {
     CHECK(liked.error().message.contains("like failed"));
 }
 
+DROGON_TEST(GetFriendListReadsFriends) {
+    auto const friends{ drogon::sync_wait(plugin_bot().GetFriendList()) };
+    REQUIRE(friends.has_value());
+    REQUIRE(friends->size() == 2);
+    CHECK((*friends)[0].user_id == TARGET_USER);
+    CHECK((*friends)[0].nickname == "alice");
+    CHECK((*friends)[0].remark == "Alice from work");
+    CHECK((*friends)[0].raw["level"].asInt() == 30);
+    CHECK((*friends)[1].user_id == SELF_ID + 1);
+    CHECK((*friends)[1].remark.empty());
+}
+
+DROGON_TEST(GetFriendListRejectsInvalidEntry) {
+    auto const friends{ drogon::sync_wait(bot_at("/bad").GetFriendList()) };
+    REQUIRE(!friends.has_value());
+    CHECK(friends.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(friends.error().message.contains("data[1].nickname is missing"));
+}
+
+DROGON_TEST(GetFriendListPassesActionError) {
+    auto const friends{ drogon::sync_wait(bot_at("/failing").GetFriendList()) };
+    REQUIRE(!friends.has_value());
+    CHECK(friends.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(friends.error().message.contains("get friend list failed"));
+}
+
 DROGON_TEST(GetGroupInfoReadsGroup) {
     auto const info{ drogon::sync_wait(plugin_bot().GetGroupInfo({ .group_id = TARGET_GROUP })) };
     REQUIRE(info.has_value());
@@ -1198,6 +1264,16 @@ DROGON_TEST(NoCacheIsSentOnlyWhenSet) {
     auto const stranger{ drogon::sync_wait(plugin_bot().GetStrangerInfo({ .user_id = TARGET_USER })) };
     REQUIRE(stranger.has_value());
     CHECK(!stranger->raw["request"].isMember("no_cache"));
+
+    auto const friends{ drogon::sync_wait(plugin_bot().GetFriendList()) };
+    REQUIRE(friends.has_value());
+    REQUIRE(!friends->empty());
+    CHECK(!friends->front().raw["request"].isMember("no_cache"));
+
+    auto const fresh_friends{ drogon::sync_wait(plugin_bot().GetFriendList({ .no_cache = true })) };
+    REQUIRE(fresh_friends.has_value());
+    REQUIRE(!fresh_friends->empty());
+    CHECK(fresh_friends->front().raw["request"]["no_cache"].asBool());
 }
 
 auto main(int argc, char** argv) -> int {

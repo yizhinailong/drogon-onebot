@@ -1,13 +1,18 @@
 /**
  * @file field_reader.hpp
- * @brief Declare the reader that event parsing and the typed actions use to read typed JSON members.
+ * @brief Declare the reader that event parsing and the typed actions use to read typed JSON members and arrays.
  */
 #pragma once
 
 #include <concepts>
+#include <expected>
 #include <format>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <json/value.h>
 
@@ -108,5 +113,40 @@ namespace drogon_onebot::details {
          */
         auto fail(std::string problem) -> void;
     };
+
+    /**
+     * @brief Read every element of a JSON array, stopping at the first problem.
+     * @tparam T Element type to return.
+     * @tparam Read Callable that reads one element into `T` or describes its first problem.
+     * @param array Value to read.
+     * @param name Name of the array, for problems, e.g. `data` or `messages`.
+     * @param read Reader of one element.
+     * @return The elements in order, or the first problem, e.g. `data is missing`,
+     * `data is not an array`, or `data[2].user_id is missing`.
+     */
+    template <typename T, typename Read>
+    requires std::is_invocable_r_v<std::expected<T, std::string>, Read&, Json::Value const&>
+    [[nodiscard]] auto read_array(
+        Json::Value const& array,
+        std::string_view name,
+        Read read
+    ) -> std::expected<std::vector<T>, std::string> {
+        if (array.isNull()) {
+            return std::unexpected{ std::format("{} is missing", name) };
+        }
+        if (!array.isArray()) {
+            return std::unexpected{ std::format("{} is not an array", name) };
+        }
+        std::vector<T> items;
+        items.reserve(array.size());
+        for (Json::ArrayIndex index{}; index < array.size(); ++index) {
+            std::expected<T, std::string> item{ read(array[index]) };
+            if (!item) {
+                return std::unexpected{ std::format("{}[{}].{}", name, index, item.error()) };
+            }
+            items.push_back(std::move(*item));
+        }
+        return items;
+    }
 
 } // namespace drogon_onebot::details

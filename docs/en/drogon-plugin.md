@@ -129,6 +129,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetLoginInfo(GetLoginInfoParams)` | `get_login_info` | `LoginInfo` (`user_id`, `nickname`) |
 | `GetStrangerInfo(GetStrangerInfoParams)` | `get_stranger_info` | `StrangerInfo` (`user_id`, `nickname`, `sex`, `age`) |
 | `SendLike(SendLikeParams)` | `send_like` | Nothing (`Result<void>`) |
+| `GetFriendList(GetFriendListParams)` | `get_friend_list` | `std::vector<FriendInfo>` (`user_id`, `nickname`, `remark`) |
 | `SendPrivateMsg(SendPrivateMsgParams)` | `send_private_msg` | `SentMessage` (`message_id`) |
 | `SendGroupMsg(SendGroupMsgParams)` | `send_group_msg` | `SentMessage` (`message_id`) |
 | `SendMsg(SendMsgParams)` | `send_msg` | `SentMessage` (`message_id`) |
@@ -151,16 +152,16 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 How typed actions read `data`:
 
 - The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, `messages`, and `sender.user_id`, depending on the action.
-- When a required field is missing or null, or any field has the wrong type (including the null `data` of `async`), the action returns a `ResponseValidation` error whose `body` is that `data`.
+- When a required field is missing or null, or any field has the wrong type (including the null `data` of `async`), the action returns a `ResponseValidation` error whose `body` is that `data`. For the list actions, the error names the entry, for example `data[1].nickname is missing`.
 - Other fields read as empty, 0, or false when the implementation leaves them out.
 - Integer fields accept both JSON numbers and decimal strings.
-- `StrangerInfo`, `MessageInfo`, `GroupInfo`, and `GroupMemberInfo` keep the whole `data` in `raw`, for the fields that have no member of their own, such as NapCat's `qid`, `group_remark`, and `is_robot`.
+- `StrangerInfo`, `MessageInfo`, `GroupInfo`, `GroupMemberInfo`, and `FriendInfo` keep the whole `data`, or the whole list entry, in `raw`, for the fields that have no member of their own, such as NapCat's `qid`, `group_remark`, and `is_robot`.
 
 NapCat's behavior with these actions:
 
 - `SendMsgParams` sends `message_type`, `user_id`, and `group_id` only when they are set. Without `message_type`, NapCat's `send_msg` sends to `group_id` when it is set and to `user_id` otherwise. With `private`, it sends to a `user_id` that is not a friend as a temporary chat through `group_id`.
 - `SendMsgParams` mirrors `MessageEvent`, so a callback can answer private and group messages alike: `bot.SendMsg({ .message_type = event.message_type, .user_id = event.user_id, .group_id = event.group_id, .message = reply })`.
-- `no_cache` is a `std::optional<bool>` and is sent only when set. When it is absent, NapCat's `get_group_member_info` skips its cache and fetches fresh data, although the standard's default is false. NapCat's `get_group_info` ignores `no_cache`.
+- `no_cache` is a `std::optional<bool>` and is sent only when set. When it is absent, NapCat's `get_group_member_info` skips its cache and fetches fresh data, although the standard's default is false. NapCat's `get_group_info` ignores `no_cache`. `GetFriendListParams::no_cache` is a NapCat extension; the standard's `get_friend_list` takes no parameters.
 - NapCat keeps message IDs in memory only, 5000 of them by default. `GetMsg`, `DeleteMsg`, and `GetForwardMsg` fail with `Action` for an ID from before NapCat's last restart.
 - `GetForwardMsg` takes the `id` of a received `forward` segment. NapCat reports events with only that `id` by default, so the forwarded messages come from this action.
 - NapCat answers `get_forward_msg` with go-cqhttp's `messages`, whole messages shaped like those of `get_msg`, instead of the standard's `message` of `node` segments. `GetForwardMsg` reads NapCat's shape and fails with `ResponseValidation` on the standard one.

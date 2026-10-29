@@ -7,6 +7,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <drogon/plugins/Plugin.h>
 #include <drogon/utils/coroutine.h>
@@ -128,6 +129,15 @@ namespace drogon_onebot {
         [[nodiscard]] auto SendLike(
             SendLikeParams params
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `get_friend_list`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the bot account's friends, or why the action failed.
+         */
+        [[nodiscard]] auto GetFriendList(
+            GetFriendListParams params = {}
+        ) const -> drogon::Task<Result<std::vector<FriendInfo>>>;
 
         /**
          * @brief Call `send_private_msg`.

@@ -48,6 +48,24 @@ namespace drogon_onebot {
     };
 
     /**
+     * @brief Arguments of `OneBot::GetFriendList()`.
+     */
+    struct GetFriendListParams {
+        std::optional<bool> no_cache; ///< Whether to skip the implementation's cache, a NapCat extension; empty sends none.
+        double timeout{ 30.0 };       ///< Seconds to wait for the response; 0 waits forever.
+    };
+
+    /**
+     * @brief Friend of the bot account, from `get_friend_list`.
+     */
+    struct FriendInfo {
+        std::int64_t user_id{}; ///< QQ number of the friend.
+        std::string nickname;   ///< Nickname of the friend.
+        std::string remark;     ///< Remark the bot account gave the friend; empty when absent.
+        Json::Value raw;        ///< Whole entry as received, for fields without a member here, e.g. NapCat's `sex` and `level`.
+    };
+
+    /**
      * @brief Arguments of `OneBot::SendLike()`.
      */
     struct SendLikeParams {

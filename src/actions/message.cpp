@@ -202,21 +202,11 @@ namespace drogon_onebot {
         if (!data) {
             co_return std::unexpected{ data.error() };
         }
-        auto const& messages{ details::member(*data, "messages") };
-        if (!messages.isArray()) {
-            auto const* const problem{ messages.isNull() ? "messages is missing" : "messages is not an array" };
-            co_return std::unexpected{ details::invalid_data_error("get_forward_msg", problem, *data) };
+        auto messages{ details::read_array<MessageInfo>(details::member(*data, "messages"), "messages", to_message_info) };
+        if (!messages) {
+            co_return std::unexpected{ details::invalid_data_error("get_forward_msg", messages.error(), *data) };
         }
-        ForwardMessage forward;
-        forward.messages.reserve(messages.size());
-        for (Json::ArrayIndex index{}; index < messages.size(); ++index) {
-            auto info{ to_message_info(messages[index]) };
-            if (!info) {
-                co_return std::unexpected{ details::invalid_data_error("get_forward_msg", std::format("messages[{}].{}", index, info.error()), *data) };
-            }
-            forward.messages.push_back(std::move(*info));
-        }
-        co_return forward;
+        co_return ForwardMessage{ .messages = std::move(*messages) };
     }
 
 } // namespace drogon_onebot
