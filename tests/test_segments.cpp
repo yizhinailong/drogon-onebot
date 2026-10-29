@@ -106,12 +106,18 @@ DROGON_TEST(MusicSendsTypeAndId) {
     CHECK(song.data.size() == 2);
 }
 
-DROGON_TEST(RpsSendsEmptyResult) {
+DROGON_TEST(RpsAndDiceSendEmptyResult) {
     auto const rps{ drogon_onebot::MessageSegment::Rps() };
     CHECK(rps.type == "rps");
     CHECK(rps.data["result"].isString());
     CHECK(rps.data["result"].asString().empty());
     CHECK(rps.data.size() == 1);
+
+    auto const dice{ drogon_onebot::MessageSegment::Dice() };
+    CHECK(dice.type == "dice");
+    CHECK(dice.data["result"].isString());
+    CHECK(dice.data["result"].asString().empty());
+    CHECK(dice.data.size() == 1);
 }
 
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
@@ -121,13 +127,13 @@ DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
         drogon_onebot::MessageSegment::Reply(1),
         drogon_onebot::MessageSegment::Text("look"),
         image,
-        { .type = "dice" },
+        { .type = "shake" },
     };
     REQUIRE(message.size() == 4);
     CHECK(message[0].type == "reply");
     CHECK(message[1].type == "text");
     CHECK(message[2].data["summary"].asString() == "[picture]");
-    CHECK(message[3].type == "dice");
+    CHECK(message[3].type == "shake");
     CHECK(message[3].data.isObject());
     CHECK(message[3].data.empty());
 }

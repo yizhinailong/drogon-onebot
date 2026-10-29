@@ -221,7 +221,7 @@ NapCat's behavior with these actions:
 | `ContactFriend(user_id)`, `ContactGroup(group_id)` | `{"type": "contact", "data": {"type": "qq", "id": "<user_id>"}}`, or `"type": "group"` with `"id": "<group_id>"` |
 | `Json(data)` | `{"type": "json", "data": {"data": data}}` |
 | `Music(type, id)` | `{"type": "music", "data": {"type": type, "id": id}}` |
-| `Rps()` | `{"type": "rps", "data": {"result": ""}}` |
+| `Rps()`, `Dice()` | `{"type": "rps", "data": {"result": ""}}`, or `"type": "dice"` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -244,7 +244,7 @@ if (!sent) {
 - For a `contact` segment, NapCat sends the recommendation card that QQ builds for that user or group.
 - `Json` takes the card's content as a JSON string, which NapCat passes to QQ as is.
 - `Music` takes a platform and a song ID. NapCat accepts `qq`, `163`, `kugou`, `kuwo`, and `migu`, but not the standard's `xm`. It sends the song's `type` and `id` to an outside service that signs the card: the one set as `musicSignUrl` in NapCat's config, or a public one by default. When signing fails, NapCat drops the segment.
-- `Rps` sends an empty `result`. The standard sends no data, but NapCat rejects the segment without `result`. NapCat ignores the value, and QQ picks the result.
+- `Rps` and `Dice` send an empty `result`. The standard sends no data, but NapCat rejects these segments without `result`. NapCat ignores the value, and QQ picks the result.
 - NapCat silently drops some segments and still sends the rest: `at` in a private message, and `reply` or `face` with an ID it does not know.
 - NapCat first checks every segment against its own schema. A segment of a type it does not know, or one without a field that NapCat requires, fails the whole send with `Action` and retcode 400.
 - For other segment types or extra fields, build or change `type` and `data` directly, for example `image.data["summary"] = "[picture]";`.

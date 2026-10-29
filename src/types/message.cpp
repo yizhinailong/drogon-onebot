@@ -180,4 +180,14 @@ namespace drogon_onebot {
         return segment("rps", "result", "");
     }
 
+    /**
+     * @brief Build a dice magic emoticon segment, whose result QQ picks.
+     * @return `{ "type": "dice", "data": { "result": "" } }`.
+     * @note The standard sends no data, but NapCat rejects a `dice` segment without `result`.
+     * It ignores the value; the empty string is no real result.
+     */
+    auto MessageSegment::Dice() -> MessageSegment {
+        return segment("dice", "result", "");
+    }
+
 } // namespace drogon_onebot
