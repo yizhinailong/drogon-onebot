@@ -190,7 +190,7 @@ NapCat 在这些动作上的行为：
 - `SetGroupAdmin` 发送 `enable`，默认为 true，与标准一致。不带它时，NapCat 的 `set_group_admin` 反而会取消管理员。
 - `SetGroupCardParams::card` 为空时删除群名片。NapCat 的 `set_group_card` 设置后会在约 3 秒内读回群名片，到时仍未改变就以 `Action` 失败。
 - `SetGroupSpecialTitleParams::special_title` 为空时删除专属头衔。NapCat 通过 packetBackend 设置头衔：它不可用时，`set_group_special_title` 以 `Action` 失败，`retcode` 为 400。NapCat 忽略 `duration`。
-- `SetFriendAddRequest` 接受好友请求事件的 `flag`，从 `RequestEvent::raw` 读取（`event.raw["flag"].asString()`）。`remark` 只在不为空时发送。没有 `flag` 对应的待处理请求时，NapCat 以 `Action` 失败；否则它不等 QQ 的处理结果，即使 QQ 拒绝，动作也会成功。
+- `SetFriendAddRequest` 接受好友请求事件的 `flag`，即 `RequestEvent::flag`。`remark` 只在不为空时发送。没有 `flag` 对应的待处理请求时，NapCat 以 `Action` 失败；否则它不等 QQ 的处理结果，即使 QQ 拒绝，动作也会成功。
 - `SetGroupAddRequest` 以同样的方式接受群请求事件的 `flag` 和 `sub_type`，`sub_type` 和 `reason` 只在不为空时发送。NapCat 忽略 `sub_type`；没有 `reason` 时用一个空格代替，因为 QQ 可能拒绝空的理由。在机器人收到的邀请和最近 100 条群通知里都找不到 `flag` 对应的请求时，NapCat 以 `Action` 失败；否则它同样不检查 QQ 的处理结果。
 - `GetCookies` 总是发送 `domain`，默认为空，与标准一致，因为不带它时 NapCat 的 `get_cookies` 以 `Action` 失败，`retcode` 为 400。NapCat 按这个域名登录 QQ 来获取 cookies，所以要传 cookies 所属的域名，例如 `qun.qq.com`。NapCat 还会返回 `bkn`，即这些 cookies 对应的 CSRF Token，以字符串形式放在 `Cookies::raw` 里。
 - NapCat 的 `get_csrf_token` 用账号的 `skey` 计算 token，`skey` 通过登录 QQ 获取，获取不到时以 `Action` 失败。
@@ -265,13 +265,14 @@ if (!sent) {
 |---|---|---|---|
 | `OnMessage(MessageHandler)` | `message` | `MessageEvent` | `message_type`、`sub_type`、`message_id`、`user_id`、`group_id`（仅群消息）、`message`、`raw_message`、`font`、`sender` |
 | `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`、`sub_type`、`detail`（见“通知详情”） |
-| `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`、`sub_type` |
+| `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`、`sub_type`、`user_id`、`comment`、`flag` |
 | `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`、`sub_type` |
 
-- 每种事件都有 `time`、`self_id`，以及完整原始事件 `raw`（`Json::Value`）。没有单独成员的字段从 `raw` 读取，例如请求事件的 `flag`、心跳的 `interval`。
+- 每种事件都有 `time`、`self_id`，以及完整原始事件 `raw`（`Json::Value`）。没有单独成员的字段从 `raw` 读取，例如 NapCat `group_card` 通知的 `card_new`、心跳的 `interval`。
 - 回调类型是 `std::function<drogon::Task<>(Event)>`。
 - 其他 `post_type`，例如开启 `reportSelfMessage` 后 NapCat 上报的 `message_sent`，回 204 后丢弃。
 - NapCat 有时把 `user_id`、`group_id` 发成字符串，解析时按数字读取。
+- 请求事件缺少 `user_id` 或 `flag` 时返回 400。NapCat 只上报未读、不是机器人自己发起、尚未处理的好友请求。
 
 ### 通知详情
 
@@ -349,7 +350,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 - 类型化动作见“调用动作”一节的表格，其余动作先用 `CallAction`。
 - `set_group_anonymous` 和 `set_group_anonymous_ban` 没有类型化方法，因为 NapCat 没有注册这两个动作。
 - `shake`、`anonymous`、`share`、`poke`、`xml`、`location` 和自定义 `music` 没有 `MessageSegment` 函数，因为 NapCat 发不出这些消息段：它拒绝 `shake`、`anonymous`、`share` 和自定义 `music`，丢弃 `poke` 和 `xml`，发送 `location` 时不带坐标。其他实现可以通过 `type` 和 `data` 构造。NapCat 用自己的动作戳一戳，例如 `group_poke`，可以通过 `CallAction` 调用。
-- 只有“通知详情”里列出的通知有自己的类型化字段。其他通知，以及请求、元事件，只有公共字段和子类型是类型化的，其余字段从 `raw` 读取。
+- 只有“通知详情”里列出的通知有自己的类型化字段。其他通知以及元事件，只有公共字段和子类型是类型化的，其余字段从 `raw` 读取。
 - `MessageEvent::anonymous`，`Sender` 的 `sex`、`age`、`area`、`level`、`title`，以及 `notify` 通知里的 `lucky_king` 和 `honor` 没有类型化成员，因为 NapCat 从不发送它们。其他实现发送的这些字段从 `raw` 读取。
 
 ## 测试

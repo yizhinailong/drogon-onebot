@@ -348,7 +348,15 @@ DROGON_TEST(DispatchesNoticeRequestAndMetaEvents) {
     REQUIRE(request.has_value());
     CHECK(request->request_type == "friend");
     CHECK(request->sub_type.empty());
-    CHECK(request->raw["flag"].asString() == "flag-1");
+    CHECK(request->user_id == 20002);
+    CHECK(request->comment == "hi");
+    CHECK(request->flag == "flag-1");
+
+    request_json.removeMember("flag");
+    auto const no_flag{ post_signed(request_json) };
+    CHECK(no_flag->getStatusCode() == drogon::k400BadRequest);
+    CHECK(std::string{ no_flag->body() }.contains("flag is missing"));
+    CHECK(!g_requests.Pop(test_support::NO_EVENT_WAIT).has_value());
 
     auto meta_json{ base_event("meta_event") };
     meta_json["meta_event_type"] = "heartbeat";

@@ -190,7 +190,7 @@ NapCat's behavior with these actions:
 - `SetGroupAdmin` sends `enable`, true by default as in the standard. Without it, NapCat's `set_group_admin` would remove the admin role instead.
 - An empty `SetGroupCardParams::card` removes the card. NapCat's `set_group_card` reads the card back for about 3 seconds after setting it and fails with `Action` when it has not changed by then.
 - An empty `SetGroupSpecialTitleParams::special_title` removes the title. NapCat sets titles through its packet backend: without a working one, `set_group_special_title` fails with `Action` and retcode 400. NapCat ignores `duration`.
-- `SetFriendAddRequest` takes the `flag` of the friend request event, read from `RequestEvent::raw` (`event.raw["flag"].asString()`). It sends `remark` only when it is not empty. NapCat fails with `Action` when no pending request has that `flag`; otherwise it does not wait for QQ's answer, so the action succeeds even if QQ refuses.
+- `SetFriendAddRequest` takes the `flag` of the friend request event, `RequestEvent::flag`. It sends `remark` only when it is not empty. NapCat fails with `Action` when no pending request has that `flag`; otherwise it does not wait for QQ's answer, so the action succeeds even if QQ refuses.
 - `SetGroupAddRequest` takes the `flag` and `sub_type` of the group request event the same way, and sends `sub_type` and `reason` only when they are not empty. NapCat ignores `sub_type`, and replaces a missing `reason` with a single space, because QQ may reject an empty one. NapCat fails with `Action` when it finds no request with that `flag` among the bot's invitations and its latest 100 group notifications; otherwise it does not check QQ's answer either.
 - `GetCookies` always sends `domain`, empty by default as in the standard, because NapCat's `get_cookies` fails with `Action` and retcode 400 without it. NapCat builds the cookies from a QQ login for that domain, so pass the domain they are for, such as `qun.qq.com`. It also answers with `bkn`, the CSRF token for these cookies, as a string in `Cookies::raw`.
 - NapCat computes the `get_csrf_token` token from the account's `skey`, which it fetches through a QQ login, and fails with `Action` when it cannot get one.
@@ -265,13 +265,14 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 |---|---|---|---|
 | `OnMessage(MessageHandler)` | `message` | `MessageEvent` | `message_type`, `sub_type`, `message_id`, `user_id`, `group_id` (group messages only), `message`, `raw_message`, `font`, `sender` |
 | `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`, `sub_type`, `detail` (see "Notice details") |
-| `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`, `sub_type` |
+| `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`, `sub_type`, `user_id`, `comment`, `flag` |
 | `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`, `sub_type` |
 
-- Every event has `time`, `self_id`, and the whole original event in `raw` (`Json::Value`). Read the fields that have no member of their own from `raw`, such as the `flag` of a request event or the `interval` of a heartbeat.
+- Every event has `time`, `self_id`, and the whole original event in `raw` (`Json::Value`). Read the fields that have no member of their own from `raw`, such as the `card_new` of NapCat's `group_card` notice or the `interval` of a heartbeat.
 - The callback type is `std::function<drogon::Task<>(Event)>`.
 - Other `post_type` values, such as the `message_sent` that NapCat reports when `reportSelfMessage` is on, get 204 and are dropped.
 - NapCat sometimes sends `user_id` and `group_id` as strings. They are parsed as numbers.
+- A request event without `user_id` or `flag` gets 400. NapCat reports only friend requests that are unread, that the bot did not send, and that are not decided yet.
 
 ### Notice details
 
@@ -349,7 +350,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 - The typed actions are listed in the table under "Calling actions". Use `CallAction` for the other actions for now.
 - `set_group_anonymous` and `set_group_anonymous_ban` have no typed method, because NapCat does not register them.
 - `shake`, `anonymous`, `share`, `poke`, `xml`, `location`, and custom `music` have no `MessageSegment` function, because NapCat cannot send them. It rejects `shake`, `anonymous`, `share`, and custom `music`, drops `poke` and `xml`, and sends `location` without its coordinates. For other implementations, build them through `type` and `data`. NapCat pokes through its own actions, such as `group_poke`, which `CallAction` reaches.
-- Only the notices under "Notice details" have typed fields of their own. For the other notices, and for request and meta events, only the common fields and the subtypes are typed. Read the other fields from `raw`.
+- Only the notices under "Notice details" have typed fields of their own. For the other notices and for meta events, only the common fields and the subtypes are typed. Read the other fields from `raw`.
 - `MessageEvent::anonymous`, the `Sender` fields `sex`, `age`, `area`, `level`, and `title`, and the `notify` notices `lucky_king` and `honor` have no typed member, because NapCat never sends them. For other implementations, read them from `raw`.
 
 ## Tests

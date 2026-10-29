@@ -456,6 +456,9 @@ namespace {
             .self_id = fields.Integer<std::int64_t>("self_id").value_or(0),
             .request_type = fields.RequiredString("request_type"),
             .sub_type = fields.String("sub_type"),
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .comment = fields.String("comment"),
+            .flag = fields.RequiredString("flag"),
             .raw = root,
         };
         return finish(fields, "request", std::move(event));

@@ -95,7 +95,7 @@
 
 请求事件：
 
-- [ ] `friend`：`user_id`、`comment`、`flag`
+- [x] `friend`：`user_id`、`comment`、`flag`
 - [ ] `group`：`group_id`、`user_id`、`comment`、`flag`
 
 元事件：
