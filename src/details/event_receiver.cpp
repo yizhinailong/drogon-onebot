@@ -297,6 +297,24 @@ namespace {
     }
 
     /**
+     * @brief Read the fields of a `friend_add` notice.
+     * @param root Notice object.
+     * @return The fields, or the first problem found, e.g. `user_id is missing`.
+     */
+    auto to_friend_add_notice(
+        Json::Value const& root
+    ) -> std::expected<drogon_onebot::FriendAddNotice, std::string> {
+        FieldReader fields{ root };
+        drogon_onebot::FriendAddNotice notice{
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return notice;
+    }
+
+    /**
      * @brief Read the type-specific fields of a notice.
      * @param root Notice object.
      * @param notice_type The notice's `notice_type`.
@@ -321,6 +339,9 @@ namespace {
         }
         if (notice_type == "group_ban") {
             return to_group_ban_notice(root);
+        }
+        if (notice_type == "friend_add") {
+            return to_friend_add_notice(root);
         }
         return drogon_onebot::NoticeDetail{};
     }

@@ -89,11 +89,18 @@ namespace drogon_onebot {
     };
 
     /**
+     * @brief Fields of a `friend_add` notice: the bot account has a new friend.
+     */
+    struct FriendAddNotice {
+        std::int64_t user_id{}; ///< QQ number of the new friend.
+    };
+
+    /**
      * @brief Type-specific fields of a notice, chosen by its `notice_type` and `sub_type`.
      *
      * `std::monostate` for any other notice, such as NapCat's extensions, whose fields stay in `NoticeEvent::raw`.
      */
-    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice, GroupIncreaseNotice, GroupBanNotice>;
+    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice, GroupIncreaseNotice, GroupBanNotice, FriendAddNotice>;
 
     /**
      * @brief Event with `post_type` `notice`, e.g. a group member joining or a message being recalled.

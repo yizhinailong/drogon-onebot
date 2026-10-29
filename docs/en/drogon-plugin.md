@@ -284,6 +284,7 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 | `group_decrease` | `GroupDecreaseNotice` | `group_id`, `operator_id`, `user_id`; `sub_type` is `leave`, `kick`, `kick_me`, or NapCat's `disband` |
 | `group_increase` | `GroupIncreaseNotice` | `group_id`, `operator_id`, `user_id`; `sub_type` is `approve` or `invite` |
 | `group_ban` | `GroupBanNotice` | `group_id`, `operator_id`, `user_id`, `duration`; `sub_type` is `ban` or `lift_ban` |
+| `friend_add` | `FriendAddNotice` | `user_id` |
 
 ```cpp
 plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {

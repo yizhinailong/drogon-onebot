@@ -284,6 +284,7 @@ if (!sent) {
 | `group_decrease` | `GroupDecreaseNotice` | `group_id`、`operator_id`、`user_id`；`sub_type` 为 `leave`、`kick`、`kick_me` 或 NapCat 的 `disband` |
 | `group_increase` | `GroupIncreaseNotice` | `group_id`、`operator_id`、`user_id`；`sub_type` 为 `approve` 或 `invite` |
 | `group_ban` | `GroupBanNotice` | `group_id`、`operator_id`、`user_id`、`duration`；`sub_type` 为 `ban` 或 `lift_ban` |
+| `friend_add` | `FriendAddNotice` | `user_id` |
 
 ```cpp
 plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {

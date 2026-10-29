@@ -457,6 +457,18 @@ DROGON_TEST(ParsesGroupBanNotice) {
     CHECK(whole_ban->duration == -1);
 }
 
+DROGON_TEST(ParsesFriendAddNotice) {
+    auto add_json{ base_event("notice") };
+    add_json["notice_type"] = "friend_add";
+    add_json["user_id"] = 20002;
+    CHECK(post_signed(add_json)->getStatusCode() == drogon::k204NoContent);
+    auto const notice{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(notice.has_value());
+    auto const* const added{ std::get_if<drogon_onebot::FriendAddNotice>(&notice->detail) };
+    REQUIRE(added != nullptr);
+    CHECK(added->user_id == 20002);
+}
+
 DROGON_TEST(RejectsNoticeWithoutTypedField) {
     auto upload_json{ group_notice("group_upload") };
     upload_json["file"]["id"] = "Ae7bVzY2Pq";
