@@ -61,11 +61,20 @@ namespace drogon_onebot {
     };
 
     /**
+     * @brief Fields of a `group_decrease` notice: a member left or was removed, by `NoticeEvent::sub_type` `leave`, `kick`, `kick_me`, or NapCat's `disband`.
+     */
+    struct GroupDecreaseNotice {
+        std::int64_t group_id{};    ///< Group number.
+        std::int64_t operator_id{}; ///< QQ number of the member who removed them; NapCat sends 0 when it cannot tell.
+        std::int64_t user_id{};     ///< QQ number of the member who left.
+    };
+
+    /**
      * @brief Type-specific fields of a notice, chosen by its `notice_type` and `sub_type`.
      *
      * `std::monostate` for any other notice, such as NapCat's extensions, whose fields stay in `NoticeEvent::raw`.
      */
-    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice>;
+    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice>;
 
     /**
      * @brief Event with `post_type` `notice`, e.g. a group member joining or a message being recalled.

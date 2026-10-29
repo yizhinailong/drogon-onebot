@@ -281,6 +281,7 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 |---|---|---|
 | `group_upload` | `GroupUploadNotice` | `group_id`, `user_id`, `file` (`id`, `name`, `size`, `busid`) |
 | `group_admin` | `GroupAdminNotice` | `group_id`, `user_id`; `sub_type` is `set` or `unset` |
+| `group_decrease` | `GroupDecreaseNotice` | `group_id`, `operator_id`, `user_id`; `sub_type` is `leave`, `kick`, `kick_me`, or NapCat's `disband` |
 
 ```cpp
 plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {

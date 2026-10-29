@@ -396,6 +396,26 @@ DROGON_TEST(ParsesGroupAdminNotice) {
     CHECK(admin->user_id == 20002);
 }
 
+DROGON_TEST(ParsesGroupDecreaseNotice) {
+    auto decrease_json{ group_notice("group_decrease") };
+    decrease_json["sub_type"] = "kick";
+    decrease_json["operator_id"] = 40004;
+    CHECK(post_signed(decrease_json)->getStatusCode() == drogon::k204NoContent);
+    auto const notice{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(notice.has_value());
+    auto const* const decrease{ std::get_if<drogon_onebot::GroupDecreaseNotice>(&notice->detail) };
+    REQUIRE(decrease != nullptr);
+    CHECK(decrease->group_id == 30003);
+    CHECK(decrease->operator_id == 40004);
+    CHECK(decrease->user_id == 20002);
+
+    decrease_json.removeMember("operator_id");
+    auto const response{ post_signed(decrease_json) };
+    CHECK(response->getStatusCode() == drogon::k400BadRequest);
+    CHECK(std::string{ response->body() }.contains("operator_id is missing"));
+    CHECK(no_notice_received());
+}
+
 DROGON_TEST(RejectsNoticeWithoutTypedField) {
     auto upload_json{ group_notice("group_upload") };
     upload_json["file"]["id"] = "Ae7bVzY2Pq";
