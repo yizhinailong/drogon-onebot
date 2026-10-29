@@ -18,6 +18,7 @@
 #include "drogon_onebot/types/event.hpp"
 #include "drogon_onebot/types/group.hpp"
 #include "drogon_onebot/types/message.hpp"
+#include "drogon_onebot/types/request.hpp"
 
 namespace drogon_onebot {
 
@@ -294,6 +295,17 @@ namespace drogon_onebot {
          */
         [[nodiscard]] auto SetGroupSpecialTitle(
             SetGroupSpecialTitleParams params
+        ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `set_friend_add_request`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing on success, or why the action failed.
+         * @note NapCat fails with `ErrorKind::Action` when no pending request has `flag`.
+         * Otherwise it does not wait for QQ's answer, so a refused request still succeeds.
+         */
+        [[nodiscard]] auto SetFriendAddRequest(
+            SetFriendAddRequestParams params
         ) const -> drogon::Task<Result<void>>;
     };
 

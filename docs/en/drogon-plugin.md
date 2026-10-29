@@ -145,6 +145,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `SetGroupName(SetGroupNameParams)` | `set_group_name` | Nothing (`Result<void>`) |
 | `SetGroupLeave(SetGroupLeaveParams)` | `set_group_leave` | Nothing (`Result<void>`) |
 | `SetGroupSpecialTitle(SetGroupSpecialTitleParams)` | `set_group_special_title` | Nothing (`Result<void>`) |
+| `SetFriendAddRequest(SetFriendAddRequestParams)` | `set_friend_add_request` | Nothing (`Result<void>`) |
 
 How typed actions read `data`:
 
@@ -171,6 +172,7 @@ NapCat's behavior with these actions:
 - `SetGroupAdmin` sends `enable`, true by default as in the standard. Without it, NapCat's `set_group_admin` would remove the admin role instead.
 - An empty `SetGroupCardParams::card` removes the card. NapCat's `set_group_card` reads the card back for about 3 seconds after setting it and fails with `Action` when it has not changed by then.
 - An empty `SetGroupSpecialTitleParams::special_title` removes the title. NapCat sets titles through its packet backend: without a working one, `set_group_special_title` fails with `Action` and retcode 400. NapCat ignores `duration`.
+- `SetFriendAddRequest` takes the `flag` of the friend request event, read from `RequestEvent::raw` (`event.raw["flag"].asString()`). It sends `remark` only when it is not empty. NapCat fails with `Action` when no pending request has that `flag`; otherwise it does not wait for QQ's answer, so the action succeeds even if QQ refuses.
 
 ### Message segments
 

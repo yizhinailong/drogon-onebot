@@ -145,6 +145,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `SetGroupName(SetGroupNameParams)` | `set_group_name` | 无（`Result<void>`） |
 | `SetGroupLeave(SetGroupLeaveParams)` | `set_group_leave` | 无（`Result<void>`） |
 | `SetGroupSpecialTitle(SetGroupSpecialTitleParams)` | `set_group_special_title` | 无（`Result<void>`） |
+| `SetFriendAddRequest(SetFriendAddRequestParams)` | `set_friend_add_request` | 无（`Result<void>`） |
 
 类型化动作读取 `data` 的规则：
 
@@ -171,6 +172,7 @@ NapCat 在这些动作上的行为：
 - `SetGroupAdmin` 发送 `enable`，默认为 true，与标准一致。不带它时，NapCat 的 `set_group_admin` 反而会取消管理员。
 - `SetGroupCardParams::card` 为空时删除群名片。NapCat 的 `set_group_card` 设置后会在约 3 秒内读回群名片，到时仍未改变就以 `Action` 失败。
 - `SetGroupSpecialTitleParams::special_title` 为空时删除专属头衔。NapCat 通过 packetBackend 设置头衔：它不可用时，`set_group_special_title` 以 `Action` 失败，`retcode` 为 400。NapCat 忽略 `duration`。
+- `SetFriendAddRequest` 接受好友请求事件的 `flag`，从 `RequestEvent::raw` 读取（`event.raw["flag"].asString()`）。`remark` 只在不为空时发送。没有 `flag` 对应的待处理请求时，NapCat 以 `Action` 失败；否则它不等 QQ 的处理结果，即使 QQ 拒绝，动作也会成功。
 
 ### 消息段
 
