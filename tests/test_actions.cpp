@@ -21,17 +21,18 @@
 
 namespace {
 
-    constexpr std::int64_t SELF_ID{ 10001 };                   ///< `user_id` of the fake `get_login_info`.
-    constexpr std::int64_t PREFIX_SELF_ID{ 10002 };            ///< `user_id` of the fake `get_login_info` under `/prefix`.
-    constexpr std::int64_t TARGET_USER{ 20002 };               ///< `user_id` that the fake `send_private_msg` accepts.
-    constexpr std::int64_t TARGET_GROUP{ 30003 };              ///< `group_id` that the fake `send_group_msg` accepts.
-    constexpr std::int32_t PRIVATE_MESSAGE_ID{ 42 };           ///< `message_id` of the fake `send_private_msg`.
-    constexpr std::int32_t GROUP_MESSAGE_ID{ 43 };             ///< `message_id` of the fake `send_group_msg`.
-    constexpr std::int32_t STORED_MESSAGE_ID{ 44 };            ///< `message_id` that the fake `delete_msg` and `get_msg` know.
-    constexpr std::int64_t MESSAGE_TIME{ 1761700000 };         ///< `time` of the message that the fake `get_msg` returns.
-    constexpr char const* FORWARD_ID{ "7561700000000000001" }; ///< `id` of the forward that the fake `get_forward_msg` knows, a NapCat message ID.
-    constexpr int FAILED_RETCODE{ 100 };                       ///< `retcode` of the fake actions that fail.
-    constexpr double SLOW_DELAY{ 1.0 };                        ///< Seconds that the fake `slow` action takes.
+    constexpr std::int64_t SELF_ID{ 10001 };                       ///< `user_id` of the fake `get_login_info`.
+    constexpr std::int64_t PREFIX_SELF_ID{ 10002 };                ///< `user_id` of the fake `get_login_info` under `/prefix`.
+    constexpr std::int64_t TARGET_USER{ 20002 };                   ///< `user_id` that the fake `send_private_msg` accepts.
+    constexpr std::int64_t TARGET_GROUP{ 30003 };                  ///< `group_id` that the fake `send_group_msg` accepts.
+    constexpr std::int32_t PRIVATE_MESSAGE_ID{ 42 };               ///< `message_id` of the fake `send_private_msg`.
+    constexpr std::int32_t GROUP_MESSAGE_ID{ 43 };                 ///< `message_id` of the fake `send_group_msg`.
+    constexpr std::int32_t STORED_MESSAGE_ID{ 44 };                ///< `message_id` that the fake `delete_msg` and `get_msg` know.
+    constexpr std::int64_t MESSAGE_TIME{ 1761700000 };             ///< `time` of the message that the fake `get_msg` returns.
+    constexpr char const* FORWARD_ID{ "7561700000000000001" };     ///< `id` of the forward that the fake `get_forward_msg` knows, a NapCat message ID.
+    constexpr char const* COOKIES{ "uin=o10001; skey=@abc12345" }; ///< `cookies` of the fake `get_cookies`.
+    constexpr int FAILED_RETCODE{ 100 };                           ///< `retcode` of the fake actions that fail.
+    constexpr double SLOW_DELAY{ 1.0 };                            ///< Seconds that the fake `slow` action takes.
 
     /**
      * @brief Build a OneBot v11 response envelope with NapCat's extra `message` and `wording`.
@@ -349,6 +350,19 @@ namespace {
             entry["request"] = request;
             data.append(entry);
         }
+        return data;
+    }
+
+    /**
+     * @brief Build NapCat's `get_cookies` data, plus the request body under `request`.
+     * @param request Body of the request, echoed so tests can check what was sent.
+     * @return `COOKIES` with NapCat's `bkn`, the CSRF token computed from their `skey`.
+     */
+    auto cookies_data(Json::Value const& request) -> Json::Value {
+        Json::Value data{ Json::objectValue };
+        data["cookies"] = COOKIES;
+        data["bkn"] = "123456789";
+        data["request"] = request;
         return data;
     }
 
@@ -684,6 +698,22 @@ namespace {
             root["message"] = "";
             root["wording"] = "";
             return drogon::HttpResponse::newHttpJsonResponse(root);
+        });
+        serve("/get_cookies", [](drogon::HttpRequestPtr const& req) {
+            // NapCat's payload check rejects a request without domain.
+            auto const body{ body_of(req) };
+            if (!body["domain"].isString()) {
+                return envelope("failed", 400, Json::Value{}, "Schema compilation error: Expected required property");
+            }
+            return ok(cookies_data(body));
+        });
+        serve("/bad/get_cookies", [](drogon::HttpRequestPtr const& req) {
+            auto data{ cookies_data(body_of(req)) };
+            data.removeMember("cookies");
+            return ok(data);
+        });
+        serve("/failing/get_cookies", [](auto const&) {
+            return envelope("failed", FAILED_RETCODE, Json::Value{}, "get cookies failed");
         });
         drogon::app().registerHandler(
             "/slow",
@@ -1439,6 +1469,35 @@ DROGON_TEST(SetGroupAddRequestPassesActionError) {
     REQUIRE(!accepted.has_value());
     CHECK(accepted.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(accepted.error().message.contains("No such request"));
+}
+
+DROGON_TEST(GetCookiesReadsCookies) {
+    auto const cookies{ drogon::sync_wait(plugin_bot().GetCookies({ .domain = "qun.qq.com" })) };
+    REQUIRE(cookies.has_value());
+    CHECK(cookies->cookies == COOKIES);
+    CHECK(cookies->raw["bkn"].asString() == "123456789");
+    CHECK(cookies->raw["request"]["domain"].asString() == "qun.qq.com");
+}
+
+DROGON_TEST(GetCookiesAlwaysSendsDomain) {
+    auto const cookies{ drogon::sync_wait(plugin_bot().GetCookies()) };
+    REQUIRE(cookies.has_value());
+    CHECK(cookies->raw["request"]["domain"].isString());
+    CHECK(cookies->raw["request"]["domain"].asString().empty());
+}
+
+DROGON_TEST(GetCookiesRejectsMissingCookies) {
+    auto const cookies{ drogon::sync_wait(bot_at("/bad").GetCookies({ .domain = "qun.qq.com" })) };
+    REQUIRE(!cookies.has_value());
+    CHECK(cookies.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(cookies.error().message.contains("cookies is missing"));
+}
+
+DROGON_TEST(GetCookiesPassesActionError) {
+    auto const cookies{ drogon::sync_wait(bot_at("/failing").GetCookies({ .domain = "qun.qq.com" })) };
+    REQUIRE(!cookies.has_value());
+    CHECK(cookies.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(cookies.error().message.contains("get cookies failed"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

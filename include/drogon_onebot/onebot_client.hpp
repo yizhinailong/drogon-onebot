@@ -16,6 +16,7 @@
 #include "drogon_onebot/error.hpp"
 #include "drogon_onebot/types/account.hpp"
 #include "drogon_onebot/types/action.hpp"
+#include "drogon_onebot/types/credential.hpp"
 #include "drogon_onebot/types/event.hpp"
 #include "drogon_onebot/types/group.hpp"
 #include "drogon_onebot/types/message.hpp"
@@ -358,6 +359,17 @@ namespace drogon_onebot {
         [[nodiscard]] auto SetGroupAddRequest(
             SetGroupAddRequestParams params
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `get_cookies`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the bot account's cookies, or why the action failed.
+         * @note NapCat also answers with the cookies' CSRF token as the string `bkn`, which
+         * `Cookies::raw` keeps.
+         */
+        [[nodiscard]] auto GetCookies(
+            GetCookiesParams params = {}
+        ) const -> drogon::Task<Result<Cookies>>;
     };
 
     /**

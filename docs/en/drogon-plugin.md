@@ -151,14 +151,15 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `SetGroupSpecialTitle(SetGroupSpecialTitleParams)` | `set_group_special_title` | Nothing (`Result<void>`) |
 | `SetFriendAddRequest(SetFriendAddRequestParams)` | `set_friend_add_request` | Nothing (`Result<void>`) |
 | `SetGroupAddRequest(SetGroupAddRequestParams)` | `set_group_add_request` | Nothing (`Result<void>`) |
+| `GetCookies(GetCookiesParams)` | `get_cookies` | `Cookies` (`cookies`) |
 
 How typed actions read `data`:
 
-- The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, `messages`, and `sender.user_id`, depending on the action.
+- The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, `messages`, `cookies`, and `sender.user_id`, depending on the action.
 - When a required field is missing or null, or any field has the wrong type (including the null `data` of `async`), the action returns a `ResponseValidation` error whose `body` is that `data`. For the list actions, the error names the entry, for example `data[1].nickname is missing`.
 - Other fields read as empty, 0, or false when the implementation leaves them out.
 - Integer fields accept both JSON numbers and decimal strings.
-- `StrangerInfo`, `MessageInfo`, `GroupInfo`, `GroupMemberInfo`, and `FriendInfo` keep the whole `data`, or the whole list entry, in `raw`, for the fields that have no member of their own, such as NapCat's `qid`, `group_remark`, and `is_robot`.
+- `StrangerInfo`, `MessageInfo`, `GroupInfo`, `GroupMemberInfo`, `FriendInfo`, and `Cookies` keep the whole `data`, or the whole list entry, in `raw`, for the fields that have no member of their own, such as NapCat's `qid`, `group_remark`, and `is_robot`.
 
 NapCat's behavior with these actions:
 
@@ -181,6 +182,7 @@ NapCat's behavior with these actions:
 - An empty `SetGroupSpecialTitleParams::special_title` removes the title. NapCat sets titles through its packet backend: without a working one, `set_group_special_title` fails with `Action` and retcode 400. NapCat ignores `duration`.
 - `SetFriendAddRequest` takes the `flag` of the friend request event, read from `RequestEvent::raw` (`event.raw["flag"].asString()`). It sends `remark` only when it is not empty. NapCat fails with `Action` when no pending request has that `flag`; otherwise it does not wait for QQ's answer, so the action succeeds even if QQ refuses.
 - `SetGroupAddRequest` takes the `flag` and `sub_type` of the group request event the same way, and sends `sub_type` and `reason` only when they are not empty. NapCat ignores `sub_type`, and replaces a missing `reason` with a single space, because QQ may reject an empty one. NapCat fails with `Action` when it finds no request with that `flag` among the bot's invitations and its latest 100 group notifications; otherwise it does not check QQ's answer either.
+- `GetCookies` always sends `domain`, empty by default as in the standard, because NapCat's `get_cookies` fails with `Action` and retcode 400 without it. NapCat builds the cookies from a QQ login for that domain, so pass the domain they are for, such as `qun.qq.com`. It also answers with `bkn`, the CSRF token for these cookies, as a string in `Cookies::raw`.
 
 ### Message segments
 

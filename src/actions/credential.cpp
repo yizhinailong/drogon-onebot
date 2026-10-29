@@ -1,0 +1,45 @@
+/**
+ * @file credential.cpp
+ * @brief Implement the credential actions of `OneBot`.
+ */
+#include <expected>
+#include <utility>
+
+#include "details/field_reader.hpp"
+#include "details/json.hpp"
+#include "details/transport.hpp"
+#include "drogon_onebot/onebot_client.hpp"
+
+namespace drogon_onebot {
+
+    /**
+     * @brief Call `get_cookies`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the bot account's cookies, or why the action failed.
+     * @note NapCat also answers with the cookies' CSRF token as the string `bkn`, which
+     * `Cookies::raw` keeps.
+     */
+    auto OneBot::GetCookies(
+        GetCookiesParams params
+    ) const -> drogon::Task<Result<Cookies>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        // NapCat fails the call with retcode 400 when domain is missing, even though the standard defaults it.
+        body["domain"] = params.domain;
+        auto const data{ co_await transport->Call("get_cookies", std::move(body), params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        details::FieldReader fields{ *data };
+        Cookies cookies{
+            .cookies = fields.RequiredString("cookies"),
+            .raw = *data,
+        };
+        if (!fields.Problem().empty()) {
+            co_return std::unexpected{ details::invalid_data_error("get_cookies", fields.Problem(), *data) };
+        }
+        co_return cookies;
+    }
+
+} // namespace drogon_onebot

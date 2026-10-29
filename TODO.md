@@ -46,7 +46,7 @@
 
 凭证：
 
-- [ ] `get_cookies`
+- [x] `get_cookies`
 - [ ] `get_csrf_token`
 - [ ] `get_credentials`
 
