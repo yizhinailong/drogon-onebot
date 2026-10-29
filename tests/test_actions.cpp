@@ -30,6 +30,7 @@ namespace {
     constexpr std::int32_t STORED_MESSAGE_ID{ 44 };                ///< `message_id` that the fake `delete_msg` and `get_msg` know.
     constexpr std::int64_t MESSAGE_TIME{ 1761700000 };             ///< `time` of the message that the fake `get_msg` returns.
     constexpr char const* FORWARD_ID{ "7561700000000000001" };     ///< `id` of the forward that the fake `get_forward_msg` knows, a NapCat message ID.
+    constexpr char const* FORWARD_RES_ID{ "Kx2lZ3k1Yq0Gm8Nc" };    ///< `res_id` of the merged forward that the fake `/forward/send_group_msg` sends.
     constexpr char const* COOKIES{ "uin=o10001; skey=@abc12345" }; ///< `cookies` of the fake `get_cookies`.
     constexpr std::int32_t CSRF_TOKEN{ 123456789 };                ///< CSRF token of the fake `get_csrf_token` and `get_credentials`, and `bkn` of `get_cookies`.
     constexpr char const* RECORD_FILE{ "8C1B4E7B.amr" };           ///< `file` of the voice that the fake `get_record` knows, a NapCat file name.
@@ -495,6 +496,30 @@ namespace {
     }
 
     /**
+     * @brief Answer a send of `node` segments as NapCat does with its packet backend.
+     *
+     * Like NapCat's schema, this rejects a node without `nickname` or `content`.
+     * @param req Request to the fake action.
+     * @return `ok` with `message_id`, `res_id`, and an equal `forward_id`, or `failed` with retcode 400.
+     */
+    auto forward_send(drogon::HttpRequestPtr const& req) -> drogon::HttpResponsePtr {
+        auto const message{ body_of(req)["message"] };
+        if (!message.isArray() || message.empty()) {
+            return envelope("failed", 400, Json::Value{}, "no nodes");
+        }
+        for (auto const& segment : message) {
+            auto const& data{ segment["data"] };
+            if (segment["type"].asString() != "node" || !data["nickname"].isString() || !data.isMember("content")) {
+                return envelope("failed", 400, Json::Value{}, "Expected union value");
+            }
+        }
+        auto data{ sent(GROUP_MESSAGE_ID) };
+        data["res_id"] = FORWARD_RES_ID;
+        data["forward_id"] = FORWARD_RES_ID;
+        return ok(data);
+    }
+
+    /**
      * @brief Check the parameters of `send_msg`, choosing the target as NapCat does.
      *
      * Without `message_type`, NapCat sends to `group_id` when it is set and to `user_id`
@@ -645,6 +670,12 @@ namespace {
             return ok(data);
         });
         serve("/bad/send_private_msg", [](auto const&) { return ok(Json::Value{ Json::objectValue }); });
+        serve("/forward/send_group_msg", forward_send);
+        serve("/mistyped/send_group_msg", [](auto const&) {
+            auto data{ sent(GROUP_MESSAGE_ID) };
+            data["res_id"] = 1;
+            return ok(data);
+        });
         serve("/failing/send_group_msg", [](auto const&) {
             return envelope("failed", FAILED_RETCODE, Json::Value{}, "group muted");
         });
@@ -1064,6 +1095,33 @@ DROGON_TEST(SendGroupMsgSendsSegments) {
     };
     REQUIRE(sent_message.has_value());
     CHECK(sent_message->message_id == GROUP_MESSAGE_ID);
+}
+
+DROGON_TEST(SendGroupMsgReadsForwardResId) {
+    auto const forwarded{ drogon::sync_wait(bot_at("/forward").SendGroupMsg({
+        .group_id = TARGET_GROUP,
+        .message = {
+            drogon_onebot::MessageSegment::Node(STORED_MESSAGE_ID),
+            drogon_onebot::MessageSegment::NodeCustom(TARGET_USER, "alice", hi_message()),
+        },
+    })) };
+    REQUIRE(forwarded.has_value());
+    CHECK(forwarded->message_id == GROUP_MESSAGE_ID);
+    CHECK(forwarded->res_id == FORWARD_RES_ID);
+
+    auto const plain{ drogon::sync_wait(plugin_bot().SendGroupMsg({ .group_id = TARGET_GROUP, .message = hi_message() })) };
+    REQUIRE(plain.has_value());
+    CHECK(plain->res_id.empty());
+}
+
+DROGON_TEST(SendGroupMsgRejectsMistypedResId) {
+    auto const forwarded{ drogon::sync_wait(bot_at("/mistyped").SendGroupMsg({
+        .group_id = TARGET_GROUP,
+        .message = { drogon_onebot::MessageSegment::Node(STORED_MESSAGE_ID) },
+    })) };
+    REQUIRE(!forwarded.has_value());
+    CHECK(forwarded.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(forwarded.error().message.contains("res_id is not a string"));
 }
 
 DROGON_TEST(SendPrivateMsgRejectsMissingMessageId) {

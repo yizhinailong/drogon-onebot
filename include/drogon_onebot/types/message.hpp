@@ -227,6 +227,7 @@ namespace drogon_onebot {
      */
     struct SentMessage {
         std::int32_t message_id{}; ///< ID of the sent message, e.g. for `delete_msg`.
+        std::string res_id;        ///< NapCat's ID of the merged forward that a message of nodes sent; empty otherwise, and without NapCat's packet backend.
     };
 
     /**

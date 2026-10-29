@@ -17,10 +17,11 @@
 namespace {
 
     /**
-     * @brief Read the sent message's ID from the result of a send action.
+     * @brief Read the sent message from the result of a send action.
      * @param action Action name, for error messages.
      * @param data Result of `Transport::Call`.
-     * @return The sent message, the call's error, or a `ResponseValidation` error when `data` has no `message_id`.
+     * @return The sent message, the call's error, or a `ResponseValidation` error when `data` has no `message_id`
+     * or a `res_id` that is not a string.
      */
     auto to_sent_message(
         std::string_view action,
@@ -30,7 +31,10 @@ namespace {
             return std::unexpected{ data.error() };
         }
         drogon_onebot::details::FieldReader fields{ *data };
-        drogon_onebot::SentMessage const sent{ .message_id = fields.RequiredInteger<std::int32_t>("message_id") };
+        drogon_onebot::SentMessage sent{
+            .message_id = fields.RequiredInteger<std::int32_t>("message_id"),
+            .res_id = fields.String("res_id"),
+        };
         if (!fields.Problem().empty()) {
             return std::unexpected{ drogon_onebot::details::invalid_data_error(action, fields.Problem(), *data) };
         }

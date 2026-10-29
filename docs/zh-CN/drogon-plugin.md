@@ -249,6 +249,7 @@ if (!sent) {
 - `Rps` 和 `Dice` 发送空的 `result`。标准不带数据，但 NapCat 拒绝没有 `result` 的这两种消息段。NapCat 忽略它的值，结果由 QQ 决定。
 - 由 `Node` 消息段组成的消息，通过 `SendMsg`、`SendGroupMsg` 或 `SendPrivateMsg` 发送时，会作为一条合并转发发出，内容是它们引用的消息；这种消息里的其他消息段被 NapCat 忽略。`Node` 还发送空的 `nickname` 和 null 的 `content`，NapCat 要求每个节点都带这两个字段，设置了 `id` 时忽略它们。NapCat 跳过它不认识的消息的节点。
 - `NodeCustom` 用自己给定的发送者和消息构造节点，`content` 全是节点时构成嵌套的合并转发。只有 NapCat 的 packet 后端可用时，才会显示这个发送者。没有 packet 后端时，机器人账号先把内容发给自己再转发，发送者显示为机器人。
+- NapCat 通过 packet 后端发出合并转发时，`SentMessage::res_id` 是这条合并转发的 ID。其他消息，以及没有 packet 后端时发出的合并转发，它为空。
 - NapCat 会静默丢弃某些消息段，其余照常发送：私聊里的 `at`，以及 ID 不认识的 `reply` 或 `face`。
 - NapCat 先按自己的 schema 检查每个消息段。类型不认识，或缺少 NapCat 要求的字段时，整条消息以 `Action` 发送失败，`retcode` 为 400。
 - 其他消息段类型或额外字段，直接构造或修改 `type` 和 `data`，例如 `image.data["summary"] = "[图片]";`。

@@ -249,6 +249,7 @@ if (!sent) {
 - `Rps` and `Dice` send an empty `result`. The standard sends no data, but NapCat rejects these segments without `result`. NapCat ignores the value, and QQ picks the result.
 - A message of `Node` segments is sent as one merged forward of the messages they reference, through `SendMsg`, `SendGroupMsg`, or `SendPrivateMsg`; NapCat ignores the other segments of such a message. `Node` also sends an empty `nickname` and a null `content`, which NapCat requires on every node and ignores when `id` is set. NapCat skips a node whose message it does not know.
 - `NodeCustom` builds a node with a sender and a message of your own, and a content of only nodes nests a forward. NapCat shows that sender only when its packet backend works. Without it, the bot account sends the content to itself and forwards those messages, so the bot appears as their sender.
+- When NapCat sends a merged forward through its packet backend, `SentMessage::res_id` holds the forward's ID. It is empty for other messages, and for a forward that NapCat sent without the packet backend.
 - NapCat silently drops some segments and still sends the rest: `at` in a private message, and `reply` or `face` with an ID it does not know.
 - NapCat first checks every segment against its own schema. A segment of a type it does not know, or one without a field that NapCat requires, fails the whole send with `Action` and retcode 400.
 - For other segment types or extra fields, build or change `type` and `data` directly, for example `image.data["summary"] = "[picture]";`.
