@@ -267,6 +267,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 - Only the HTTP API and HTTP POST reporting are implemented. There is no forward or reverse WebSocket.
 - Quick operations in the report response are not supported.
 - The typed actions are listed in the table under "Calling actions". Use `CallAction` for the other actions for now.
+- `set_group_anonymous` and `set_group_anonymous_ban` have no typed method, because NapCat does not register them.
 - For notice, request, and meta events, only the common fields and the subtypes are typed. Read the other fields from `raw`.
 
 ## Tests
