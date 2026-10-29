@@ -380,6 +380,17 @@ namespace drogon_onebot {
         [[nodiscard]] auto GetCsrfToken(
             GetCsrfTokenParams params = {}
         ) const -> drogon::Task<Result<CsrfToken>>;
+
+        /**
+         * @brief Call `get_credentials`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the bot account's cookies and CSRF token, or why the action failed.
+         * @note NapCat sends the token as `token`, like `get_csrf_token`, instead of the
+         * standard's `csrf_token`; this reads either.
+         */
+        [[nodiscard]] auto GetCredentials(
+            GetCredentialsParams params = {}
+        ) const -> drogon::Task<Result<Credentials>>;
     };
 
     /**

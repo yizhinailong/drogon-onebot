@@ -31,7 +31,7 @@ namespace {
     constexpr std::int64_t MESSAGE_TIME{ 1761700000 };             ///< `time` of the message that the fake `get_msg` returns.
     constexpr char const* FORWARD_ID{ "7561700000000000001" };     ///< `id` of the forward that the fake `get_forward_msg` knows, a NapCat message ID.
     constexpr char const* COOKIES{ "uin=o10001; skey=@abc12345" }; ///< `cookies` of the fake `get_cookies`.
-    constexpr std::int32_t CSRF_TOKEN{ 123456789 };                ///< `token` of the fake `get_csrf_token`, and `bkn` of `get_cookies`.
+    constexpr std::int32_t CSRF_TOKEN{ 123456789 };                ///< CSRF token of the fake `get_csrf_token` and `get_credentials`, and `bkn` of `get_cookies`.
     constexpr int FAILED_RETCODE{ 100 };                           ///< `retcode` of the fake actions that fail.
     constexpr double SLOW_DELAY{ 1.0 };                            ///< Seconds that the fake `slow` action takes.
 
@@ -368,6 +368,33 @@ namespace {
     }
 
     /**
+     * @brief Build NapCat's `get_credentials` data.
+     * @return `COOKIES` with `CSRF_TOKEN` under NapCat's `token`, not the standard's `csrf_token`.
+     */
+    auto credentials_data() -> Json::Value {
+        Json::Value data{ Json::objectValue };
+        data["cookies"] = COOKIES;
+        data["token"] = CSRF_TOKEN;
+        return data;
+    }
+
+    /**
+     * @brief Answer a fake cookie action, whose `domain` NapCat's payload check requires.
+     * @param req Request to the fake action.
+     * @param data Data to answer with when `domain` is a string.
+     * @return `ok` with `data`, or `failed` with retcode 400, as NapCat answers a missing `domain`.
+     */
+    auto domain_or_failed(
+        drogon::HttpRequestPtr const& req,
+        Json::Value const& data
+    ) -> drogon::HttpResponsePtr {
+        if (!body_of(req)["domain"].isString()) {
+            return envelope("failed", 400, Json::Value{}, "Schema compilation error: Expected required property");
+        }
+        return ok(data);
+    }
+
+    /**
      * @brief Answer a fake action that checks one ID parameter.
      * @param req Request to the fake action.
      * @param key Name of the ID parameter.
@@ -701,12 +728,7 @@ namespace {
             return drogon::HttpResponse::newHttpJsonResponse(root);
         });
         serve("/get_cookies", [](drogon::HttpRequestPtr const& req) {
-            // NapCat's payload check rejects a request without domain.
-            auto const body{ body_of(req) };
-            if (!body["domain"].isString()) {
-                return envelope("failed", 400, Json::Value{}, "Schema compilation error: Expected required property");
-            }
-            return ok(cookies_data(body));
+            return domain_or_failed(req, cookies_data(body_of(req)));
         });
         serve("/bad/get_cookies", [](drogon::HttpRequestPtr const& req) {
             auto data{ cookies_data(body_of(req)) };
@@ -729,6 +751,23 @@ namespace {
         });
         serve("/failing/get_csrf_token", [](auto const&) {
             return envelope("failed", FAILED_RETCODE, Json::Value{}, "SKey is Empty");
+        });
+        serve("/get_credentials", [](drogon::HttpRequestPtr const& req) {
+            return domain_or_failed(req, credentials_data());
+        });
+        serve("/standard/get_credentials", [](auto const&) {
+            auto data{ credentials_data() };
+            data.removeMember("token");
+            data["csrf_token"] = CSRF_TOKEN;
+            return ok(data);
+        });
+        serve("/bad/get_credentials", [](auto const&) {
+            auto data{ credentials_data() };
+            data.removeMember("token");
+            return ok(data);
+        });
+        serve("/failing/get_credentials", [](auto const&) {
+            return envelope("failed", FAILED_RETCODE, Json::Value{}, "get credentials failed");
         });
         drogon::app().registerHandler(
             "/slow",
@@ -1533,6 +1572,39 @@ DROGON_TEST(GetCsrfTokenPassesActionError) {
     REQUIRE(!token.has_value());
     CHECK(token.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(token.error().message.contains("SKey is Empty"));
+}
+
+DROGON_TEST(GetCredentialsReadsNapCatToken) {
+    auto const credentials{ drogon::sync_wait(plugin_bot().GetCredentials({ .domain = "qun.qq.com" })) };
+    REQUIRE(credentials.has_value());
+    CHECK(credentials->cookies == COOKIES);
+    CHECK(credentials->csrf_token == CSRF_TOKEN);
+}
+
+DROGON_TEST(GetCredentialsReadsStandardToken) {
+    auto const credentials{ drogon::sync_wait(bot_at("/standard").GetCredentials({ .domain = "qun.qq.com" })) };
+    REQUIRE(credentials.has_value());
+    CHECK(credentials->cookies == COOKIES);
+    CHECK(credentials->csrf_token == CSRF_TOKEN);
+}
+
+DROGON_TEST(GetCredentialsAlwaysSendsDomain) {
+    auto const credentials{ drogon::sync_wait(plugin_bot().GetCredentials()) };
+    CHECK(credentials.has_value());
+}
+
+DROGON_TEST(GetCredentialsRejectsMissingToken) {
+    auto const credentials{ drogon::sync_wait(bot_at("/bad").GetCredentials({ .domain = "qun.qq.com" })) };
+    REQUIRE(!credentials.has_value());
+    CHECK(credentials.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(credentials.error().message.contains("csrf_token is missing"));
+}
+
+DROGON_TEST(GetCredentialsPassesActionError) {
+    auto const credentials{ drogon::sync_wait(bot_at("/failing").GetCredentials({ .domain = "qun.qq.com" })) };
+    REQUIRE(!credentials.has_value());
+    CHECK(credentials.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(credentials.error().message.contains("get credentials failed"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

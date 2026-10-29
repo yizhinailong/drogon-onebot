@@ -48,7 +48,7 @@
 
 - [x] `get_cookies`
 - [x] `get_csrf_token`
-- [ ] `get_credentials`
+- [x] `get_credentials`
 
 文件和能力：
 

@@ -153,10 +153,11 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `SetGroupAddRequest(SetGroupAddRequestParams)` | `set_group_add_request` | Nothing (`Result<void>`) |
 | `GetCookies(GetCookiesParams)` | `get_cookies` | `Cookies` (`cookies`) |
 | `GetCsrfToken(GetCsrfTokenParams)` | `get_csrf_token` | `CsrfToken` (`token`) |
+| `GetCredentials(GetCredentialsParams)` | `get_credentials` | `Credentials` (`cookies`, `csrf_token`) |
 
 How typed actions read `data`:
 
-- The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, `messages`, `cookies`, `token`, and `sender.user_id`, depending on the action.
+- The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, `messages`, `cookies`, `token`, `csrf_token`, and `sender.user_id`, depending on the action.
 - When a required field is missing or null, or any field has the wrong type (including the null `data` of `async`), the action returns a `ResponseValidation` error whose `body` is that `data`. For the list actions, the error names the entry, for example `data[1].nickname is missing`.
 - Other fields read as empty, 0, or false when the implementation leaves them out.
 - Integer fields accept both JSON numbers and decimal strings.
@@ -185,6 +186,7 @@ NapCat's behavior with these actions:
 - `SetGroupAddRequest` takes the `flag` and `sub_type` of the group request event the same way, and sends `sub_type` and `reason` only when they are not empty. NapCat ignores `sub_type`, and replaces a missing `reason` with a single space, because QQ may reject an empty one. NapCat fails with `Action` when it finds no request with that `flag` among the bot's invitations and its latest 100 group notifications; otherwise it does not check QQ's answer either.
 - `GetCookies` always sends `domain`, empty by default as in the standard, because NapCat's `get_cookies` fails with `Action` and retcode 400 without it. NapCat builds the cookies from a QQ login for that domain, so pass the domain they are for, such as `qun.qq.com`. It also answers with `bkn`, the CSRF token for these cookies, as a string in `Cookies::raw`.
 - NapCat computes the `get_csrf_token` token from the account's `skey`, which it fetches through a QQ login, and fails with `Action` when it cannot get one.
+- `GetCredentials` sends `domain` the same way as `GetCookies`. NapCat's `get_credentials` answers with the token as `token`, like `get_csrf_token`, instead of the standard's `csrf_token`; `GetCredentials` reads either. NapCat computes the token from the `skey` among the cookies and sends 0 when there is none.
 
 ### Message segments
 
