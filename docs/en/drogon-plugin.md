@@ -128,6 +128,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `CallAction(CallActionParams)` | Any action, including implementation extensions | The response's `data`; null for `async` |
 | `GetLoginInfo(GetLoginInfoParams)` | `get_login_info` | `LoginInfo` (`user_id`, `nickname`) |
 | `GetStrangerInfo(GetStrangerInfoParams)` | `get_stranger_info` | `StrangerInfo` (`user_id`, `nickname`, `sex`, `age`) |
+| `SendLike(SendLikeParams)` | `send_like` | Nothing (`Result<void>`) |
 | `SendPrivateMsg(SendPrivateMsgParams)` | `send_private_msg` | `SentMessage` (`message_id`) |
 | `SendGroupMsg(SendGroupMsgParams)` | `send_group_msg` | `SentMessage` (`message_id`) |
 | `SendMsg(SendMsgParams)` | `send_msg` | `SentMessage` (`message_id`) |
@@ -155,6 +156,7 @@ NapCat's behavior with these actions:
 - NapCat answers `get_forward_msg` with go-cqhttp's `messages`, whole messages shaped like those of `get_msg`, instead of the standard's `message` of `node` segments. `GetForwardMsg` reads NapCat's shape and fails with `ResponseValidation` on the standard one.
 - A forward nested in a forward comes inline: its `forward` segment carries the inner messages, in the same shape, in `data["content"]`. NapCat cannot fetch a nested forward by its `id`, and the `message_id` of a forwarded message only identifies it; NapCat cannot act on it.
 - `GroupMemberInfo::nickname` is the QQ nickname; the group card is `card`. NapCat leaves out `role` for some members, so it can be empty.
+- `SendLike` always sends `times`, 1 by default; the standard allows 10 likes per friend a day. NapCat answers a successful `send_like` without `data`, and reports a like that QQ refuses as `Action`.
 
 ### Message segments
 

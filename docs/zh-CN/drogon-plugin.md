@@ -128,6 +128,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `CallAction(CallActionParams)` | 任意动作，含实现扩展 | 响应的 `data`；`async` 时为 null |
 | `GetLoginInfo(GetLoginInfoParams)` | `get_login_info` | `LoginInfo`（`user_id`、`nickname`） |
 | `GetStrangerInfo(GetStrangerInfoParams)` | `get_stranger_info` | `StrangerInfo`（`user_id`、`nickname`、`sex`、`age`） |
+| `SendLike(SendLikeParams)` | `send_like` | 无（`Result<void>`） |
 | `SendPrivateMsg(SendPrivateMsgParams)` | `send_private_msg` | `SentMessage`（`message_id`） |
 | `SendGroupMsg(SendGroupMsgParams)` | `send_group_msg` | `SentMessage`（`message_id`） |
 | `SendMsg(SendMsgParams)` | `send_msg` | `SentMessage`（`message_id`） |
@@ -155,6 +156,7 @@ NapCat 在这些动作上的行为：
 - NapCat 对 `get_forward_msg` 返回 go-cqhttp 的 `messages`，每项是一条完整消息，形状与 `get_msg` 的相同，而不是标准里由 `node` 消息段组成的 `message`。`GetForwardMsg` 按 NapCat 的形状读取，遇到标准的形状时以 `ResponseValidation` 失败。
 - 嵌套在合并转发里的合并转发直接内嵌：它的 `forward` 消息段在 `data["content"]` 里以同样的形状带着内层消息。NapCat 不能按 `id` 获取嵌套的合并转发；转发消息的 `message_id` 只用来标识，NapCat 不能对它执行操作。
 - `GroupMemberInfo::nickname` 是 QQ 昵称，群名片是 `card`。NapCat 对部分成员不给 `role`，所以它可能为空。
+- `SendLike` 总是发送 `times`，默认为 1；标准规定每个好友每天最多 10 次。NapCat 对成功的 `send_like` 不返回 `data`，QQ 拒绝的点赞以 `Action` 报告。
 
 ### 消息段
 

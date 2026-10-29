@@ -47,4 +47,13 @@ namespace drogon_onebot {
         Json::Value raw;        ///< Whole `data` as received, for fields without a member here, e.g. NapCat's `qid` and `long_nick`.
     };
 
+    /**
+     * @brief Arguments of `OneBot::SendLike()`.
+     */
+    struct SendLikeParams {
+        std::int64_t user_id{};  ///< QQ number of the account to like.
+        std::int32_t times{ 1 }; ///< Number of likes; the standard allows 10 per friend a day.
+        double timeout{ 30.0 };  ///< Seconds to wait for the response; 0 waits forever.
+    };
+
 } // namespace drogon_onebot

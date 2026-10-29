@@ -119,6 +119,16 @@ namespace drogon_onebot {
         ) const -> drogon::Task<Result<StrangerInfo>>;
 
         /**
+         * @brief Call `send_like`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing once the likes are sent, or why the action failed.
+         * @note NapCat reports a like that QQ refuses as `ErrorKind::Action`.
+         */
+        [[nodiscard]] auto SendLike(
+            SendLikeParams params
+        ) const -> drogon::Task<Result<void>>;
+
+        /**
          * @brief Call `send_private_msg`.
          * @param params Request fields, taken by value so they outlive the caller's frame.
          * @return Task yielding the sent message's ID, or why the action failed.

@@ -471,6 +471,21 @@ namespace {
             return known_id_or_failed(req, "user_id", TARGET_USER, stranger_info(body_of(req)));
         });
         serve("/bad/get_stranger_info", [](auto const&) { return ok(Json::Value{}); });
+        serve("/send_like", [](drogon::HttpRequestPtr const& req) {
+            // Refuse more likes than the standard's daily limit of 10, as QQ would.
+            auto const body{ body_of(req) };
+            auto const& times{ body["times"] };
+            if (body["user_id"].asInt64() != TARGET_USER || !times.isIntegral() || times.asInt() < 1 || times.asInt() > 10) {
+                return envelope("failed", FAILED_RETCODE, Json::Value{}, "like failed");
+            }
+            // NapCat's send_like returns nothing, so its envelope has no data member.
+            Json::Value root{ Json::objectValue };
+            root["status"] = "ok";
+            root["retcode"] = 0;
+            root["message"] = "";
+            root["wording"] = "";
+            return drogon::HttpResponse::newHttpJsonResponse(root);
+        });
         drogon::app().registerHandler(
             "/slow",
             [](drogon::HttpRequestPtr /*req*/) -> drogon::Task<drogon::HttpResponsePtr> {
@@ -800,6 +815,21 @@ DROGON_TEST(GetStrangerInfoRejectsNullData) {
     REQUIRE(!info.has_value());
     CHECK(info.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
     CHECK(info.error().message.contains("user_id"));
+}
+
+DROGON_TEST(SendLikeSendsUserAndTimes) {
+    auto const once{ drogon::sync_wait(plugin_bot().SendLike({ .user_id = TARGET_USER })) };
+    CHECK(once.has_value());
+
+    auto const ten{ drogon::sync_wait(plugin_bot().SendLike({ .user_id = TARGET_USER, .times = 10 })) };
+    CHECK(ten.has_value());
+}
+
+DROGON_TEST(SendLikePassesActionError) {
+    auto const liked{ drogon::sync_wait(plugin_bot().SendLike({ .user_id = TARGET_USER, .times = 11 })) };
+    REQUIRE(!liked.has_value());
+    CHECK(liked.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(liked.error().message.contains("like failed"));
 }
 
 DROGON_TEST(GetGroupInfoReadsGroup) {
