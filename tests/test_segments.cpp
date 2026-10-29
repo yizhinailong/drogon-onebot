@@ -120,6 +120,18 @@ DROGON_TEST(RpsAndDiceSendEmptyResult) {
     CHECK(dice.data.size() == 1);
 }
 
+DROGON_TEST(NodeReferencesMessageWithNapCatKeys) {
+    auto const node{ drogon_onebot::MessageSegment::Node(MESSAGE_ID) };
+    CHECK(node.type == "node");
+    CHECK(node.data["id"].isString());
+    CHECK(node.data["id"].asString() == "-2147000001");
+    CHECK(node.data["nickname"].isString());
+    CHECK(node.data["nickname"].asString().empty());
+    CHECK(node.data.isMember("content"));
+    CHECK(node.data["content"].isNull());
+    CHECK(node.data.size() == 3);
+}
+
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
     auto image{ drogon_onebot::MessageSegment::Image("https://example.com/a.png") };
     image.data["summary"] = "[picture]";

@@ -146,6 +146,16 @@ namespace drogon_onebot {
          * It ignores the value; the empty string is no real result.
          */
         [[nodiscard]] static auto Dice() -> MessageSegment;
+
+        /**
+         * @brief Build a forward node that references an earlier message.
+         * @param message_id ID of the message to forward, e.g. `MessageEvent::message_id`.
+         * @return `{ "type": "node", "data": { "id": "<message_id>", "nickname": "", "content": null } }`.
+         * @note NapCat sends the nodes of a message as one merged forward and ignores its other
+         * segments. It rejects a node without `nickname` and `content`, which it ignores when
+         * `id` is set, and skips a node whose message it does not know.
+         */
+        [[nodiscard]] static auto Node(std::int32_t message_id) -> MessageSegment;
     };
 
     /**

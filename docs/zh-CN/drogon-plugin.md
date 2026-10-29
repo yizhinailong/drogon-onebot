@@ -222,6 +222,7 @@ NapCat 在这些动作上的行为：
 | `Json(data)` | `{"type": "json", "data": {"data": data}}` |
 | `Music(type, id)` | `{"type": "music", "data": {"type": type, "id": id}}` |
 | `Rps()`、`Dice()` | `{"type": "rps", "data": {"result": ""}}`，或 `"type": "dice"` |
+| `Node(message_id)` | `{"type": "node", "data": {"id": "<message_id>", "nickname": "", "content": null}}` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -245,6 +246,7 @@ if (!sent) {
 - `Json` 接受字符串形式的 JSON 卡片内容，NapCat 原样交给 QQ。
 - `Music` 接受音乐平台和歌曲 ID。NapCat 支持 `qq`、`163`、`kugou`、`kuwo`、`migu`，不支持标准里的 `xm`。它把歌曲的 `type` 和 `id` 发给外部服务为卡片签名：NapCat 配置里 `musicSignUrl` 设置的服务，默认是一个公共服务。签名失败时，NapCat 丢弃该消息段。
 - `Rps` 和 `Dice` 发送空的 `result`。标准不带数据，但 NapCat 拒绝没有 `result` 的这两种消息段。NapCat 忽略它的值，结果由 QQ 决定。
+- 由 `Node` 消息段组成的消息，通过 `SendMsg`、`SendGroupMsg` 或 `SendPrivateMsg` 发送时，会作为一条合并转发发出，内容是它们引用的消息；这种消息里的其他消息段被 NapCat 忽略。`Node` 还发送空的 `nickname` 和 null 的 `content`，NapCat 要求每个节点都带这两个字段，设置了 `id` 时忽略它们。NapCat 跳过它不认识的消息的节点。
 - NapCat 会静默丢弃某些消息段，其余照常发送：私聊里的 `at`，以及 ID 不认识的 `reply` 或 `face`。
 - NapCat 先按自己的 schema 检查每个消息段。类型不认识，或缺少 NapCat 要求的字段时，整条消息以 `Action` 发送失败，`retcode` 为 400。
 - 其他消息段类型或额外字段，直接构造或修改 `type` 和 `data`，例如 `image.data["summary"] = "[图片]";`。
