@@ -220,6 +220,7 @@ NapCat's behavior with these actions:
 | `Video(file)` | `{"type": "video", "data": {"file": file}}` |
 | `ContactFriend(user_id)`, `ContactGroup(group_id)` | `{"type": "contact", "data": {"type": "qq", "id": "<user_id>"}}`, or `"type": "group"` with `"id": "<group_id>"` |
 | `Json(data)` | `{"type": "json", "data": {"data": data}}` |
+| `Music(type, id)` | `{"type": "music", "data": {"type": type, "id": id}}` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -241,7 +242,9 @@ if (!sent) {
 - NapCat takes a video's cover from the video with ffmpeg, or uses a default cover when it cannot. To send another cover, set NapCat's extension `thumb`, for example `video.data["thumb"] = "https://example.com/cover.jpg";`.
 - For a `contact` segment, NapCat sends the recommendation card that QQ builds for that user or group.
 - `Json` takes the card's content as a JSON string, which NapCat passes to QQ as is.
+- `Music` takes a platform and a song ID. NapCat accepts `qq`, `163`, `kugou`, `kuwo`, and `migu`, but not the standard's `xm`. It sends the song's `type` and `id` to an outside service that signs the card: the one set as `musicSignUrl` in NapCat's config, or a public one by default. When signing fails, NapCat drops the segment.
 - NapCat silently drops some segments and still sends the rest: `at` in a private message, and `reply` or `face` with an ID it does not know.
+- NapCat first checks every segment against its own schema. A segment of a type it does not know, or one without a field that NapCat requires, fails the whole send with `Action` and retcode 400.
 - For other segment types or extra fields, build or change `type` and `data` directly, for example `image.data["summary"] = "[picture]";`.
 - Received segments carry their IDs as strings too. The `id` of a received `reply` segment is a decimal string; convert it to an integer for `GetMsg`.
 

@@ -220,6 +220,7 @@ NapCat 在这些动作上的行为：
 | `Video(file)` | `{"type": "video", "data": {"file": file}}` |
 | `ContactFriend(user_id)`、`ContactGroup(group_id)` | `{"type": "contact", "data": {"type": "qq", "id": "<user_id>"}}`，或 `"type": "group"` 加 `"id": "<group_id>"` |
 | `Json(data)` | `{"type": "json", "data": {"data": data}}` |
+| `Music(type, id)` | `{"type": "music", "data": {"type": type, "id": id}}` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -241,7 +242,9 @@ if (!sent) {
 - NapCat 用 ffmpeg 从视频里截取封面，截取不了时用默认封面。要发送别的封面，设置 NapCat 的扩展字段 `thumb`，例如 `video.data["thumb"] = "https://example.com/cover.jpg";`。
 - 对于 `contact` 消息段，NapCat 发送 QQ 为该用户或群生成的推荐卡片。
 - `Json` 接受字符串形式的 JSON 卡片内容，NapCat 原样交给 QQ。
+- `Music` 接受音乐平台和歌曲 ID。NapCat 支持 `qq`、`163`、`kugou`、`kuwo`、`migu`，不支持标准里的 `xm`。它把歌曲的 `type` 和 `id` 发给外部服务为卡片签名：NapCat 配置里 `musicSignUrl` 设置的服务，默认是一个公共服务。签名失败时，NapCat 丢弃该消息段。
 - NapCat 会静默丢弃某些消息段，其余照常发送：私聊里的 `at`，以及 ID 不认识的 `reply` 或 `face`。
+- NapCat 先按自己的 schema 检查每个消息段。类型不认识，或缺少 NapCat 要求的字段时，整条消息以 `Action` 发送失败，`retcode` 为 400。
 - 其他消息段类型或额外字段，直接构造或修改 `type` 和 `data`，例如 `image.data["summary"] = "[图片]";`。
 - 收到的消息段里 ID 同样是字符串。收到的 `reply` 消息段的 `id` 是十进制字符串，传给 `GetMsg` 前要转成整数。
 

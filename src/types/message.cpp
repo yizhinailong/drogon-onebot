@@ -153,4 +153,21 @@ namespace drogon_onebot {
         return segment("json", "data", std::move(data));
     }
 
+    /**
+     * @brief Build a segment that shares a song from a music platform.
+     * @param type Platform: `qq`, `163`, or `xm` in the standard; NapCat takes `qq`, `163`, `kugou`, `kuwo`, and `migu`.
+     * @param id Song ID on that platform, e.g. `28949129`.
+     * @return `{ "type": "music", "data": { "type": <type>, "id": <id> } }`.
+     * @note NapCat sends `type` and `id` to an outside service that signs the card, and drops
+     * the segment when signing fails.
+     */
+    auto MessageSegment::Music(
+        std::string type,
+        std::string id
+    ) -> MessageSegment {
+        auto result{ segment("music", "type", std::move(type)) };
+        result.data["id"] = std::move(id);
+        return result;
+    }
+
 } // namespace drogon_onebot

@@ -97,6 +97,15 @@ DROGON_TEST(JsonSendsDataAsString) {
     CHECK(card.data.size() == 1);
 }
 
+DROGON_TEST(MusicSendsTypeAndId) {
+    auto const song{ drogon_onebot::MessageSegment::Music("163", "28949129") };
+    CHECK(song.type == "music");
+    CHECK(song.data["type"].asString() == "163");
+    CHECK(song.data["id"].isString());
+    CHECK(song.data["id"].asString() == "28949129");
+    CHECK(song.data.size() == 2);
+}
+
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
     auto image{ drogon_onebot::MessageSegment::Image("https://example.com/a.png") };
     image.data["summary"] = "[picture]";

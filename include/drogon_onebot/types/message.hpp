@@ -117,6 +117,19 @@ namespace drogon_onebot {
          * @note NapCat passes `data` to QQ as the card's content as is.
          */
         [[nodiscard]] static auto Json(std::string data) -> MessageSegment;
+
+        /**
+         * @brief Build a segment that shares a song from a music platform.
+         * @param type Platform: `qq`, `163`, or `xm` in the standard; NapCat takes `qq`, `163`, `kugou`, `kuwo`, and `migu`.
+         * @param id Song ID on that platform, e.g. `28949129`.
+         * @return `{ "type": "music", "data": { "type": <type>, "id": <id> } }`.
+         * @note NapCat sends `type` and `id` to an outside service that signs the card, and drops
+         * the segment when signing fails.
+         */
+        [[nodiscard]] static auto Music(
+            std::string type,
+            std::string id
+        ) -> MessageSegment;
     };
 
     /**
