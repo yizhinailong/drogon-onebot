@@ -162,4 +162,19 @@ namespace drogon_onebot {
         Json::Value raw;                      ///< Whole `data` as received, for fields without a member here.
     };
 
+    /**
+     * @brief Arguments of `OneBot::GetForwardMsg()`.
+     */
+    struct GetForwardMsgParams {
+        std::string id;         ///< ID of the forward: the `id` of a received `forward` segment.
+        double timeout{ 30.0 }; ///< Seconds to wait for the response; 0 waits forever.
+    };
+
+    /**
+     * @brief Content of a forward, from `get_forward_msg`.
+     */
+    struct ForwardMessage {
+        std::vector<MessageInfo> messages; ///< Forwarded messages in order; a nested forward is a `forward` segment that carries its messages in `data["content"]`.
+    };
+
 } // namespace drogon_onebot

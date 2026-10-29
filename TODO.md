@@ -18,7 +18,7 @@
 消息：
 
 - [x] `send_msg`：按 `message_type` 发送私聊或群消息
-- [ ] `get_forward_msg`：获取合并转发的内容
+- [x] `get_forward_msg`：获取合并转发的内容
 - [ ] `send_like`：点赞
 
 群管理：

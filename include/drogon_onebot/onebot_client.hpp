@@ -171,6 +171,19 @@ namespace drogon_onebot {
         ) const -> drogon::Task<Result<MessageInfo>>;
 
         /**
+         * @brief Call `get_forward_msg`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the forwarded messages, or why the action failed.
+         * @note NapCat answers with go-cqhttp's `messages`, whole messages shaped like those
+         * of `get_msg`, instead of the standard's `node` segments; this reads NapCat's shape.
+         * Like `GetMsg()`, it fails with `ErrorKind::Action` for a forward that NapCat has not
+         * seen since it started.
+         */
+        [[nodiscard]] auto GetForwardMsg(
+            GetForwardMsgParams params
+        ) const -> drogon::Task<Result<ForwardMessage>>;
+
+        /**
          * @brief Call `get_group_info`.
          * @param params Request fields, taken by value so they outlive the caller's frame.
          * @return Task yielding the group, or why the action failed.

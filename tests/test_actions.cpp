@@ -20,16 +20,17 @@
 
 namespace {
 
-    constexpr std::int64_t SELF_ID{ 10001 };           ///< `user_id` of the fake `get_login_info`.
-    constexpr std::int64_t PREFIX_SELF_ID{ 10002 };    ///< `user_id` of the fake `get_login_info` under `/prefix`.
-    constexpr std::int64_t TARGET_USER{ 20002 };       ///< `user_id` that the fake `send_private_msg` accepts.
-    constexpr std::int64_t TARGET_GROUP{ 30003 };      ///< `group_id` that the fake `send_group_msg` accepts.
-    constexpr std::int32_t PRIVATE_MESSAGE_ID{ 42 };   ///< `message_id` of the fake `send_private_msg`.
-    constexpr std::int32_t GROUP_MESSAGE_ID{ 43 };     ///< `message_id` of the fake `send_group_msg`.
-    constexpr std::int32_t STORED_MESSAGE_ID{ 44 };    ///< `message_id` that the fake `delete_msg` and `get_msg` know.
-    constexpr std::int64_t MESSAGE_TIME{ 1761700000 }; ///< `time` of the message that the fake `get_msg` returns.
-    constexpr int FAILED_RETCODE{ 100 };               ///< `retcode` of the fake actions that fail.
-    constexpr double SLOW_DELAY{ 1.0 };                ///< Seconds that the fake `slow` action takes.
+    constexpr std::int64_t SELF_ID{ 10001 };                   ///< `user_id` of the fake `get_login_info`.
+    constexpr std::int64_t PREFIX_SELF_ID{ 10002 };            ///< `user_id` of the fake `get_login_info` under `/prefix`.
+    constexpr std::int64_t TARGET_USER{ 20002 };               ///< `user_id` that the fake `send_private_msg` accepts.
+    constexpr std::int64_t TARGET_GROUP{ 30003 };              ///< `group_id` that the fake `send_group_msg` accepts.
+    constexpr std::int32_t PRIVATE_MESSAGE_ID{ 42 };           ///< `message_id` of the fake `send_private_msg`.
+    constexpr std::int32_t GROUP_MESSAGE_ID{ 43 };             ///< `message_id` of the fake `send_group_msg`.
+    constexpr std::int32_t STORED_MESSAGE_ID{ 44 };            ///< `message_id` that the fake `delete_msg` and `get_msg` know.
+    constexpr std::int64_t MESSAGE_TIME{ 1761700000 };         ///< `time` of the message that the fake `get_msg` returns.
+    constexpr char const* FORWARD_ID{ "7561700000000000001" }; ///< `id` of the forward that the fake `get_forward_msg` knows, a NapCat message ID.
+    constexpr int FAILED_RETCODE{ 100 };                       ///< `retcode` of the fake actions that fail.
+    constexpr double SLOW_DELAY{ 1.0 };                        ///< Seconds that the fake `slow` action takes.
 
     /**
      * @brief Build a OneBot v11 response envelope with NapCat's extra `message` and `wording`.
@@ -157,6 +158,26 @@ namespace {
         data.removeMember("group_id");
         data.removeMember("group_name");
         data["sender"].removeMember("role");
+        return data;
+    }
+
+    /**
+     * @brief Build NapCat's `get_forward_msg` data, with a nested forward inline as NapCat sends it.
+     * @return Object whose `messages` are `stored_group_message()` and a private message
+     * that holds a `forward` segment with `stored_group_message()` in its `content`.
+     */
+    auto forwarded_messages() -> Json::Value {
+        Json::Value nested{ Json::objectValue };
+        nested["type"] = "forward";
+        nested["data"]["id"] = "7561700000000000002";
+        nested["data"]["content"].append(stored_group_message());
+        auto outer{ stored_private_message() };
+        outer["message"] = Json::Value{ Json::arrayValue };
+        outer["message"].append(nested);
+
+        Json::Value data{ Json::objectValue };
+        data["messages"].append(stored_group_message());
+        data["messages"].append(outer);
         return data;
     }
 
@@ -395,6 +416,31 @@ namespace {
         serve("/bad/get_msg", [](auto const&) {
             auto data{ stored_group_message() };
             data["sender"] = Json::Value{ Json::objectValue };
+            return ok(data);
+        });
+        serve("/get_forward_msg", [](drogon::HttpRequestPtr const& req) {
+            auto const body{ body_of(req) };
+            if (!body["id"].isString() || body["id"].asString() != FORWARD_ID) {
+                return envelope("failed", FAILED_RETCODE, Json::Value{}, "unknown id");
+            }
+            return ok(forwarded_messages());
+        });
+        serve("/bad/get_forward_msg", [](auto const&) {
+            auto data{ forwarded_messages() };
+            data["messages"][1]["sender"] = Json::Value{ Json::objectValue };
+            return ok(data);
+        });
+        serve("/standard/get_forward_msg", [](auto const&) {
+            Json::Value text{ Json::objectValue };
+            text["type"] = "text";
+            text["data"]["text"] = "hi";
+            Json::Value node{ Json::objectValue };
+            node["type"] = "node";
+            node["data"]["user_id"] = std::to_string(TARGET_USER);
+            node["data"]["nickname"] = "alice";
+            node["data"]["content"].append(text);
+            Json::Value data{ Json::objectValue };
+            data["message"].append(node);
             return ok(data);
         });
         serve("/get_group_info", [](drogon::HttpRequestPtr const& req) {
@@ -697,6 +743,46 @@ DROGON_TEST(GetMsgRejectsSenderWithoutUserId) {
     REQUIRE(!info.has_value());
     CHECK(info.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
     CHECK(info.error().message.contains("sender.user_id"));
+}
+
+DROGON_TEST(GetForwardMsgReadsMessages) {
+    auto const forward{ drogon::sync_wait(plugin_bot().GetForwardMsg({ .id = FORWARD_ID })) };
+    REQUIRE(forward.has_value());
+    REQUIRE(forward->messages.size() == 2);
+    auto const& first{ forward->messages[0] };
+    CHECK(first.message_id == STORED_MESSAGE_ID);
+    CHECK(first.group_id == TARGET_GROUP);
+    CHECK(first.sender.nickname == "alice");
+    REQUIRE(first.message.size() == 2);
+    CHECK(first.message[1].data["text"].asString() == " hi");
+
+    auto const& outer{ forward->messages[1] };
+    CHECK(outer.message_type == "private");
+    REQUIRE(outer.message.size() == 1);
+    CHECK(outer.message[0].type == "forward");
+    CHECK(outer.message[0].data["content"][0]["message_id"].asInt() == STORED_MESSAGE_ID);
+}
+
+DROGON_TEST(GetForwardMsgPassesActionError) {
+    auto const forward{ drogon::sync_wait(plugin_bot().GetForwardMsg({ .id = "1" })) };
+    REQUIRE(!forward.has_value());
+    CHECK(forward.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(forward.error().message.contains("unknown id"));
+}
+
+DROGON_TEST(GetForwardMsgRejectsInvalidMessage) {
+    auto const forward{ drogon::sync_wait(bot_at("/bad").GetForwardMsg({ .id = FORWARD_ID })) };
+    REQUIRE(!forward.has_value());
+    CHECK(forward.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(forward.error().message.contains("messages[1].sender.user_id is missing"));
+}
+
+DROGON_TEST(GetForwardMsgRejectsStandardShape) {
+    // The standard answers with `message` node segments; NapCat, which this reads, with `messages`.
+    auto const forward{ drogon::sync_wait(bot_at("/standard").GetForwardMsg({ .id = FORWARD_ID })) };
+    REQUIRE(!forward.has_value());
+    CHECK(forward.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(forward.error().message.contains("messages is missing"));
 }
 
 DROGON_TEST(GetStrangerInfoReadsProfile) {
