@@ -25,6 +25,21 @@ namespace {
         return result;
     }
 
+    /**
+     * @brief Build a segment that recommends a user or a group.
+     * @param type `qq` for a user or `group` for a group.
+     * @param id QQ number or group number to recommend.
+     * @return `{ "type": "contact", "data": { "type": <type>, "id": "<id>" } }`.
+     */
+    auto contact(
+        char const* type,
+        std::int64_t id
+    ) -> drogon_onebot::MessageSegment {
+        auto result{ segment("contact", "type", type) };
+        result.data["id"] = std::to_string(id);
+        return result;
+    }
+
 } // namespace
 
 namespace drogon_onebot {
@@ -106,6 +121,26 @@ namespace drogon_onebot {
      */
     auto MessageSegment::Video(std::string file) -> MessageSegment {
         return segment("video", "file", std::move(file));
+    }
+
+    /**
+     * @brief Build a segment that recommends a QQ user.
+     * @param user_id QQ number of the user to recommend.
+     * @return `{ "type": "contact", "data": { "type": "qq", "id": "<user_id>" } }`.
+     * @note NapCat sends the recommendation card that QQ builds for the user.
+     */
+    auto MessageSegment::ContactFriend(std::int64_t user_id) -> MessageSegment {
+        return contact("qq", user_id);
+    }
+
+    /**
+     * @brief Build a segment that recommends a group.
+     * @param group_id Group number of the group to recommend.
+     * @return `{ "type": "contact", "data": { "type": "group", "id": "<group_id>" } }`.
+     * @note NapCat sends the recommendation card that QQ builds for the group.
+     */
+    auto MessageSegment::ContactGroup(std::int64_t group_id) -> MessageSegment {
+        return contact("group", group_id);
     }
 
 } // namespace drogon_onebot

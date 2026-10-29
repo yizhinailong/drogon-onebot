@@ -73,6 +73,21 @@ DROGON_TEST(VideoPassesFileThrough) {
     }
 }
 
+DROGON_TEST(ContactSendsTypeAndIdAsString) {
+    auto const user{ drogon_onebot::MessageSegment::ContactFriend(LONG_USER_ID) };
+    CHECK(user.type == "contact");
+    CHECK(user.data["type"].asString() == "qq");
+    CHECK(user.data["id"].isString());
+    CHECK(user.data["id"].asString() == "1234567890123");
+    CHECK(user.data.size() == 2);
+
+    auto const group{ drogon_onebot::MessageSegment::ContactGroup(30003) };
+    CHECK(group.type == "contact");
+    CHECK(group.data["type"].asString() == "group");
+    CHECK(group.data["id"].asString() == "30003");
+    CHECK(group.data.size() == 2);
+}
+
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
     auto image{ drogon_onebot::MessageSegment::Image("https://example.com/a.png") };
     image.data["summary"] = "[picture]";

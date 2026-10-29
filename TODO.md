@@ -66,7 +66,7 @@
 
 ## 消息段构造函数
 
-已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`、`Record`、`Video`。`shake`、`anonymous` 等是老版 QQ 的功能，加之前先确认 NapCat 是否还支持。
+已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`、`Record`、`Video`、`ContactFriend`、`ContactGroup`。`shake`、`anonymous` 等是老版 QQ 的功能，加之前先确认 NapCat 是否还支持。
 
 - [x] `record`：语音
 - [x] `video`：短视频
@@ -76,7 +76,7 @@
 - [ ] `poke`：戳一戳
 - [ ] `anonymous`：匿名发消息
 - [ ] `share`：链接分享
-- [ ] `contact`：推荐好友或群
+- [x] `contact`：推荐好友或群
 - [ ] `location`：位置
 - [ ] `music`：音乐分享，含自定义音乐
 - [ ] `forward`：合并转发，只在收到的消息里出现，内容用 `get_forward_msg` 获取

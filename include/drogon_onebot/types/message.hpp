@@ -93,6 +93,22 @@ namespace drogon_onebot {
          * set `data["thumb"]` to send another. It fails the whole send when it cannot fetch the file.
          */
         [[nodiscard]] static auto Video(std::string file) -> MessageSegment;
+
+        /**
+         * @brief Build a segment that recommends a QQ user.
+         * @param user_id QQ number of the user to recommend.
+         * @return `{ "type": "contact", "data": { "type": "qq", "id": "<user_id>" } }`.
+         * @note NapCat sends the recommendation card that QQ builds for the user.
+         */
+        [[nodiscard]] static auto ContactFriend(std::int64_t user_id) -> MessageSegment;
+
+        /**
+         * @brief Build a segment that recommends a group.
+         * @param group_id Group number of the group to recommend.
+         * @return `{ "type": "contact", "data": { "type": "group", "id": "<group_id>" } }`.
+         * @note NapCat sends the recommendation card that QQ builds for the group.
+         */
+        [[nodiscard]] static auto ContactGroup(std::int64_t group_id) -> MessageSegment;
     };
 
     /**
