@@ -114,11 +114,21 @@ namespace drogon_onebot {
     };
 
     /**
+     * @brief Fields of a `notify` notice with `sub_type` `poke`: someone poked someone.
+     */
+    struct PokeNotice {
+        std::optional<std::int64_t> group_id;  ///< Group number of a group poke; empty for NapCat's friend pokes.
+        std::int64_t user_id{};                ///< QQ number of who poked, in a group; in NapCat's friend pokes, the friend of the chat.
+        std::optional<std::int64_t> sender_id; ///< QQ number of who poked, in NapCat's friend pokes; empty in group pokes, where it is `user_id`.
+        std::int64_t target_id{};              ///< QQ number of who was poked.
+    };
+
+    /**
      * @brief Type-specific fields of a notice, chosen by its `notice_type` and `sub_type`.
      *
      * `std::monostate` for any other notice, such as NapCat's extensions, whose fields stay in `NoticeEvent::raw`.
      */
-    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice, GroupIncreaseNotice, GroupBanNotice, FriendAddNotice, GroupRecallNotice, FriendRecallNotice>;
+    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice, GroupIncreaseNotice, GroupBanNotice, FriendAddNotice, GroupRecallNotice, FriendRecallNotice, PokeNotice>;
 
     /**
      * @brief Event with `post_type` `notice`, e.g. a group member joining or a message being recalled.

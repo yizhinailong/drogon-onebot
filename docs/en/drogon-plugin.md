@@ -287,6 +287,7 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 | `friend_add` | `FriendAddNotice` | `user_id` |
 | `group_recall` | `GroupRecallNotice` | `group_id`, `user_id`, `operator_id`, `message_id` |
 | `friend_recall` | `FriendRecallNotice` | `user_id`, `message_id` |
+| `notify`, with `sub_type` `poke` | `PokeNotice` | `user_id`, `target_id`; `group_id` in groups, NapCat's `sender_id` for friends |
 
 ```cpp
 plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
@@ -297,7 +298,7 @@ plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
 });
 ```
 
-- The fields in the table are required, except a file's `size` and `busid`, which read as 0. A notice of a listed type that misses a required field, or has a field of the wrong type, gets 400, and no callback runs.
+- The fields in the table are required, except a file's `size` and `busid`, which read as 0, and a poke's `group_id` and `sender_id`, which are `std::optional`. A notice of a listed type that misses a required field, or has a field of the wrong type, gets 400, and no callback runs.
 
 ### Route responses
 

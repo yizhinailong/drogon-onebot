@@ -355,15 +355,38 @@ namespace {
     }
 
     /**
+     * @brief Read the fields of a `notify` `poke` notice.
+     * @param root Notice object.
+     * @return The fields, or the first problem found, e.g. `target_id is missing`.
+     */
+    auto to_poke_notice(
+        Json::Value const& root
+    ) -> std::expected<drogon_onebot::PokeNotice, std::string> {
+        FieldReader fields{ root };
+        drogon_onebot::PokeNotice notice{
+            .group_id = fields.Integer<std::int64_t>("group_id"),
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .sender_id = fields.Integer<std::int64_t>("sender_id"),
+            .target_id = fields.RequiredInteger<std::int64_t>("target_id"),
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return notice;
+    }
+
+    /**
      * @brief Read the type-specific fields of a notice.
      * @param root Notice object.
      * @param notice_type The notice's `notice_type`.
+     * @param sub_type The notice's `sub_type`.
      * @return The fields of a notice type in `NoticeDetail`, `std::monostate` for any other
      * notice, or the first problem found.
      */
     auto read_notice_detail(
         Json::Value const& root,
-        std::string_view notice_type
+        std::string_view notice_type,
+        std::string_view sub_type
     ) -> std::expected<drogon_onebot::NoticeDetail, std::string> {
         if (notice_type == "group_upload") {
             return to_group_upload_notice(root);
@@ -389,6 +412,9 @@ namespace {
         if (notice_type == "friend_recall") {
             return to_friend_recall_notice(root);
         }
+        if (notice_type == "notify" && sub_type == "poke") {
+            return to_poke_notice(root);
+        }
         return drogon_onebot::NoticeDetail{};
     }
 
@@ -408,7 +434,7 @@ namespace {
             .sub_type = fields.String("sub_type"),
             .raw = root,
         };
-        auto detail{ read_notice_detail(root, event.notice_type) };
+        auto detail{ read_notice_detail(root, event.notice_type, event.sub_type) };
         if (fields.Problem().empty() && !detail) {
             return std::unexpected{ std::format("notice event: {}", detail.error()) };
         }

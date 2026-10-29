@@ -504,6 +504,43 @@ DROGON_TEST(ParsesFriendRecallNotice) {
     CHECK(no_notice_received());
 }
 
+DROGON_TEST(ParsesPokeNotices) {
+    auto group_json{ group_notice("notify") };
+    group_json["sub_type"] = "poke";
+    group_json["target_id"] = 10001;
+    CHECK(post_signed(group_json)->getStatusCode() == drogon::k204NoContent);
+    auto const group{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(group.has_value());
+    auto const* const group_poke{ std::get_if<drogon_onebot::PokeNotice>(&group->detail) };
+    REQUIRE(group_poke != nullptr);
+    CHECK(group_poke->group_id == 30003);
+    CHECK(group_poke->user_id == 20002);
+    CHECK(!group_poke->sender_id.has_value());
+    CHECK(group_poke->target_id == 10001);
+
+    auto friend_json{ base_event("notice") };
+    friend_json["notice_type"] = "notify";
+    friend_json["sub_type"] = "poke";
+    friend_json["user_id"] = 20002;
+    friend_json["sender_id"] = 20002;
+    friend_json["target_id"] = 10001;
+    CHECK(post_signed(friend_json)->getStatusCode() == drogon::k204NoContent);
+    auto const friend_notice{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(friend_notice.has_value());
+    auto const* const friend_poke{ std::get_if<drogon_onebot::PokeNotice>(&friend_notice->detail) };
+    REQUIRE(friend_poke != nullptr);
+    CHECK(!friend_poke->group_id.has_value());
+    CHECK(friend_poke->sender_id == 20002);
+
+    auto title_json{ group_notice("notify") };
+    title_json["sub_type"] = "title";
+    title_json["title"] = "dragon";
+    CHECK(post_signed(title_json)->getStatusCode() == drogon::k204NoContent);
+    auto const title{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(title.has_value());
+    CHECK(std::holds_alternative<std::monostate>(title->detail));
+}
+
 DROGON_TEST(RejectsNoticeWithoutTypedField) {
     auto upload_json{ group_notice("group_upload") };
     upload_json["file"]["id"] = "Ae7bVzY2Pq";

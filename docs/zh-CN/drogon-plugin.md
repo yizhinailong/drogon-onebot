@@ -287,6 +287,7 @@ if (!sent) {
 | `friend_add` | `FriendAddNotice` | `user_id` |
 | `group_recall` | `GroupRecallNotice` | `group_id`、`user_id`、`operator_id`、`message_id` |
 | `friend_recall` | `FriendRecallNotice` | `user_id`、`message_id` |
+| `notify`，`sub_type` 为 `poke` | `PokeNotice` | `user_id`、`target_id`；群里有 `group_id`，好友间有 NapCat 的 `sender_id` |
 
 ```cpp
 plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
@@ -297,7 +298,7 @@ plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
 });
 ```
 
-- 表中字段是必需的，只有文件的 `size` 和 `busid` 可以缺省，读作 0。所列类型的通知缺少必需字段或字段类型不对时返回 400，回调不运行。
+- 表中字段是必需的，只有文件的 `size` 和 `busid` 可以缺省，读作 0；戳一戳的 `group_id` 和 `sender_id` 是 `std::optional`。所列类型的通知缺少必需字段或字段类型不对时返回 400，回调不运行。
 
 ### 路由的应答
 
