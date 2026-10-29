@@ -67,4 +67,14 @@ namespace drogon_onebot {
         Json::Value raw;                  ///< Whole `data` as received, for fields without a member here, e.g. NapCat's `is_robot`.
     };
 
+    /**
+     * @brief Arguments of `OneBot::SetGroupKick()`.
+     */
+    struct SetGroupKickParams {
+        std::int64_t group_id{};          ///< Group number.
+        std::int64_t user_id{};           ///< QQ number of the member to remove.
+        bool reject_add_request{ false }; ///< Whether to refuse the member's later requests to join.
+        double timeout{ 30.0 };           ///< Seconds to wait for the response; 0 waits forever.
+    };
+
 } // namespace drogon_onebot

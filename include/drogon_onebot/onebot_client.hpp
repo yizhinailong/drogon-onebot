@@ -210,6 +210,17 @@ namespace drogon_onebot {
         [[nodiscard]] auto GetGroupMemberInfo(
             GetGroupMemberInfoParams params
         ) const -> drogon::Task<Result<GroupMemberInfo>>;
+
+        /**
+         * @brief Call `set_group_kick`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing on success, or why the action failed.
+         * @note NapCat does not check QQ's answer, so a removal that QQ refuses, e.g.
+         * without admin rights, still succeeds.
+         */
+        [[nodiscard]] auto SetGroupKick(
+            SetGroupKickParams params
+        ) const -> drogon::Task<Result<void>>;
     };
 
     /**

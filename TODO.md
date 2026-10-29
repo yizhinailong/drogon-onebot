@@ -23,7 +23,7 @@
 
 群管理：
 
-- [ ] `set_group_kick`：踢出成员
+- [x] `set_group_kick`：踢出成员
 - [ ] `set_group_ban`：禁言成员
 - [ ] `set_group_anonymous_ban`：禁言匿名成员
 - [ ] `set_group_whole_ban`：全员禁言

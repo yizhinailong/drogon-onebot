@@ -137,6 +137,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetForwardMsg(GetForwardMsgParams)` | `get_forward_msg` | `ForwardMessage` (`messages`, each a `MessageInfo`) |
 | `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo` (`group_id`, `group_name`, `member_count`, `max_member_count`) |
 | `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo` (`card`, `role`, `level`, `title`, and the other fields of the standard) |
+| `SetGroupKick(SetGroupKickParams)` | `set_group_kick` | Nothing (`Result<void>`) |
 
 How typed actions read `data`:
 
@@ -157,6 +158,8 @@ NapCat's behavior with these actions:
 - A forward nested in a forward comes inline: its `forward` segment carries the inner messages, in the same shape, in `data["content"]`. NapCat cannot fetch a nested forward by its `id`, and the `message_id` of a forwarded message only identifies it; NapCat cannot act on it.
 - `GroupMemberInfo::nickname` is the QQ nickname; the group card is `card`. NapCat leaves out `role` for some members, so it can be empty.
 - `SendLike` always sends `times`, 1 by default; the standard allows 10 likes per friend a day. NapCat answers a successful `send_like` without `data`, and reports a like that QQ refuses as `Action`.
+- The group setters (`SetGroup*`) always send the parameters that the standard gives a default, with that default, so the result does not depend on the implementation's own defaults.
+- NapCat does not check QQ's answer for `set_group_kick`, so a removal that QQ refuses, for example without admin rights, still succeeds.
 
 ### Message segments
 

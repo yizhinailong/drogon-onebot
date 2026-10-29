@@ -345,6 +345,52 @@ namespace {
     }
 
     /**
+     * @brief Return the requests that the fake setters received, for tests to read back.
+     * @return Inbox of `{ "action": <name>, "body": <request body> }` objects, oldest first.
+     */
+    auto setter_requests() -> test_support::Inbox<Json::Value>& {
+        static test_support::Inbox<Json::Value> requests;
+        return requests;
+    }
+
+    /**
+     * @brief Serve a fake setter, which answers `ok` with null `data` as NapCat's setters do.
+     *
+     * `/<action>` records each request in `setter_requests()`, and `/failing/<action>`
+     * answers `failed` with `FAILED_RETCODE`.
+     * @param action Action name.
+     * @param failure Error text of the failing variant, like NapCat's for that action.
+     */
+    auto serve_setter(
+        std::string const& action,
+        std::string failure
+    ) -> void {
+        serve("/" + action, [action](drogon::HttpRequestPtr const& req) {
+            Json::Value request{ Json::objectValue };
+            request["action"] = action;
+            request["body"] = body_of(req);
+            setter_requests().Push(std::move(request));
+            return ok(Json::Value{});
+        });
+        serve("/failing/" + action, [failure = std::move(failure)](auto const&) {
+            return envelope("failed", FAILED_RETCODE, Json::Value{}, failure);
+        });
+    }
+
+    /**
+     * @brief Take the request that the last setter call sent.
+     * @param action Action that should have received it.
+     * @return Its body, or null when no request to `action` arrived.
+     */
+    auto sent_to(std::string const& action) -> Json::Value {
+        auto const request{ setter_requests().Pop(test_support::EVENT_WAIT) };
+        if (!request || (*request)["action"].asString() != action) {
+            return Json::Value{};
+        }
+        return (*request)["body"];
+    }
+
+    /**
      * @brief Register the fake NapCat HTTP API on the app's listener.
      */
     auto serve_fake_napcat() -> void {
@@ -471,6 +517,7 @@ namespace {
             return known_id_or_failed(req, "user_id", TARGET_USER, stranger_info(body_of(req)));
         });
         serve("/bad/get_stranger_info", [](auto const&) { return ok(Json::Value{}); });
+        serve_setter("set_group_kick", "get Uid Error");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -883,6 +930,23 @@ DROGON_TEST(GetGroupMemberInfoRejectsWrongType) {
     REQUIRE(!info.has_value());
     CHECK(info.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
     CHECK(info.error().message.contains("unfriendly is not a boolean"));
+}
+
+DROGON_TEST(SetGroupKickSendsRejectFlag) {
+    auto const kicked{ drogon::sync_wait(plugin_bot().SetGroupKick({ .group_id = TARGET_GROUP, .user_id = TARGET_USER })) };
+    CHECK(kicked.has_value());
+    auto const body{ sent_to("set_group_kick") };
+    CHECK(body["group_id"].asInt64() == TARGET_GROUP);
+    CHECK(body["user_id"].asInt64() == TARGET_USER);
+    CHECK(body["reject_add_request"].isBool());
+    CHECK(!body["reject_add_request"].asBool());
+}
+
+DROGON_TEST(SetGroupKickPassesActionError) {
+    auto const kicked{ drogon::sync_wait(bot_at("/failing").SetGroupKick({ .group_id = TARGET_GROUP, .user_id = TARGET_USER })) };
+    REQUIRE(!kicked.has_value());
+    CHECK(kicked.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(kicked.error().message.contains("get Uid Error"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

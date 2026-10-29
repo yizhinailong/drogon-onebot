@@ -137,6 +137,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetForwardMsg(GetForwardMsgParams)` | `get_forward_msg` | `ForwardMessage`（`messages`，每条是一个 `MessageInfo`） |
 | `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo`（`group_id`、`group_name`、`member_count`、`max_member_count`） |
 | `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo`（`card`、`role`、`level`、`title` 及标准里的其他字段） |
+| `SetGroupKick(SetGroupKickParams)` | `set_group_kick` | 无（`Result<void>`） |
 
 类型化动作读取 `data` 的规则：
 
@@ -157,6 +158,8 @@ NapCat 在这些动作上的行为：
 - 嵌套在合并转发里的合并转发直接内嵌：它的 `forward` 消息段在 `data["content"]` 里以同样的形状带着内层消息。NapCat 不能按 `id` 获取嵌套的合并转发；转发消息的 `message_id` 只用来标识，NapCat 不能对它执行操作。
 - `GroupMemberInfo::nickname` 是 QQ 昵称，群名片是 `card`。NapCat 对部分成员不给 `role`，所以它可能为空。
 - `SendLike` 总是发送 `times`，默认为 1；标准规定每个好友每天最多 10 次。NapCat 对成功的 `send_like` 不返回 `data`，QQ 拒绝的点赞以 `Action` 报告。
+- 群设置类动作（`SetGroup*`）对标准规定了默认值的参数总是按该默认值发送，结果不受实现自身默认值的影响。
+- NapCat 不检查 QQ 对 `set_group_kick` 的处理结果，所以 QQ 拒绝的踢人（例如没有管理员权限）也会报告成功。
 
 ### 消息段
 
