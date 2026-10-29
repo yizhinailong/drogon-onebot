@@ -143,6 +143,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `SetGroupAdmin(SetGroupAdminParams)` | `set_group_admin` | Nothing (`Result<void>`) |
 | `SetGroupCard(SetGroupCardParams)` | `set_group_card` | Nothing (`Result<void>`) |
 | `SetGroupName(SetGroupNameParams)` | `set_group_name` | Nothing (`Result<void>`) |
+| `SetGroupLeave(SetGroupLeaveParams)` | `set_group_leave` | Nothing (`Result<void>`) |
 
 How typed actions read `data`:
 
@@ -164,7 +165,7 @@ NapCat's behavior with these actions:
 - `GroupMemberInfo::nickname` is the QQ nickname; the group card is `card`. NapCat leaves out `role` for some members, so it can be empty.
 - `SendLike` always sends `times`, 1 by default; the standard allows 10 likes per friend a day. NapCat answers a successful `send_like` without `data`, and reports a like that QQ refuses as `Action`.
 - The group setters (`SetGroup*`) always send the parameters that the standard gives a default, with that default, so the result does not depend on the implementation's own defaults.
-- NapCat does not check QQ's answer for `set_group_kick` and `set_group_admin`, so a change that QQ refuses, for example without the needed rights, still succeeds.
+- NapCat does not check QQ's answer for `set_group_kick`, `set_group_admin`, and `set_group_leave`, so a change that QQ refuses, for example without the needed rights, still succeeds.
 - `SetGroupBan` sends `duration` in seconds, 30 minutes by default as in the standard; 0 lifts the mute. NapCat's own default is 0. NapCat fails with `Action` for a member not in the group, for the owner, and for an admin unless the bot account owns the group.
 - `SetGroupAdmin` sends `enable`, true by default as in the standard. Without it, NapCat's `set_group_admin` would remove the admin role instead.
 - An empty `SetGroupCardParams::card` removes the card. NapCat's `set_group_card` reads the card back for about 3 seconds after setting it and fails with `Action` when it has not changed by then.

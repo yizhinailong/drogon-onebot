@@ -224,4 +224,25 @@ namespace drogon_onebot {
         co_return Result<void>{};
     }
 
+    /**
+     * @brief Call `set_group_leave`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding nothing on success, or why the action failed.
+     * @note NapCat does not check QQ's answer, so a request that QQ refuses still succeeds.
+     */
+    auto OneBot::SetGroupLeave(
+        SetGroupLeaveParams params
+    ) const -> drogon::Task<Result<void>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        body["group_id"] = params.group_id;
+        body["is_dismiss"] = params.is_dismiss;
+        auto const data{ co_await transport->Call("set_group_leave", std::move(body), params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        co_return Result<void>{};
+    }
+
 } // namespace drogon_onebot

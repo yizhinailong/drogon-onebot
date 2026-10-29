@@ -523,6 +523,7 @@ namespace {
         serve_setter("set_group_admin", "get Uid Error");
         serve_setter("set_group_card", "group card not applied");
         serve_setter("set_group_name", "set group name failed");
+        serve_setter("set_group_leave", "group not found");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -1070,6 +1071,28 @@ DROGON_TEST(SetGroupNamePassesActionError) {
     REQUIRE(!renamed.has_value());
     CHECK(renamed.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(renamed.error().message.contains("set group name failed"));
+}
+
+DROGON_TEST(SetGroupLeaveSendsDismissFlag) {
+    auto const left{ drogon::sync_wait(plugin_bot().SetGroupLeave({ .group_id = TARGET_GROUP })) };
+    CHECK(left.has_value());
+    auto const leave{ sent_to("set_group_leave") };
+    CHECK(leave["group_id"].asInt64() == TARGET_GROUP);
+    CHECK(leave["is_dismiss"].isBool());
+    CHECK(!leave["is_dismiss"].asBool());
+
+    auto const disbanded{ drogon::sync_wait(plugin_bot().SetGroupLeave({ .group_id = TARGET_GROUP, .is_dismiss = true })) };
+    CHECK(disbanded.has_value());
+    auto const disband{ sent_to("set_group_leave") };
+    CHECK(disband["is_dismiss"].isBool());
+    CHECK(disband["is_dismiss"].asBool());
+}
+
+DROGON_TEST(SetGroupLeavePassesActionError) {
+    auto const left{ drogon::sync_wait(bot_at("/failing").SetGroupLeave({ .group_id = TARGET_GROUP })) };
+    REQUIRE(!left.has_value());
+    CHECK(left.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(left.error().message.contains("group not found"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

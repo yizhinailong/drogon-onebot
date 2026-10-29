@@ -125,4 +125,13 @@ namespace drogon_onebot {
         double timeout{ 30.0 };  ///< Seconds to wait for the response; 0 waits forever.
     };
 
+    /**
+     * @brief Arguments of `OneBot::SetGroupLeave()`.
+     */
+    struct SetGroupLeaveParams {
+        std::int64_t group_id{};  ///< Group number.
+        bool is_dismiss{ false }; ///< Whether to disband the group instead of leaving it, which only its owner can do.
+        double timeout{ 30.0 };   ///< Seconds to wait for the response; 0 waits forever.
+    };
+
 } // namespace drogon_onebot

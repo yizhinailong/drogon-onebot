@@ -31,7 +31,7 @@
 - [ ] `set_group_anonymous`：开关匿名聊天
 - [x] `set_group_card`：设置群名片
 - [x] `set_group_name`：设置群名
-- [ ] `set_group_leave`：退群或解散群
+- [x] `set_group_leave`：退群或解散群
 - [ ] `set_group_special_title`：设置专属头衔
 
 请求处理：

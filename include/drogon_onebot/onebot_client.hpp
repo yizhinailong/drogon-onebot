@@ -274,6 +274,16 @@ namespace drogon_onebot {
         [[nodiscard]] auto SetGroupName(
             SetGroupNameParams params
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `set_group_leave`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing on success, or why the action failed.
+         * @note NapCat does not check QQ's answer, so a request that QQ refuses still succeeds.
+         */
+        [[nodiscard]] auto SetGroupLeave(
+            SetGroupLeaveParams params
+        ) const -> drogon::Task<Result<void>>;
     };
 
     /**
