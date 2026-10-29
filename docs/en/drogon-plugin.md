@@ -224,6 +224,7 @@ NapCat's behavior with these actions:
 | `Rps()`, `Dice()` | `{"type": "rps", "data": {"result": ""}}`, or `"type": "dice"` |
 | `Node(message_id)` | `{"type": "node", "data": {"id": "<message_id>", "nickname": "", "content": null}}` |
 | `NodeCustom(user_id, nickname, content)` | `{"type": "node", "data": {"user_id": "<user_id>", "nickname": nickname, "content": [...]}}` |
+| `Forward(res_id)` | `{"type": "forward", "data": {"id": res_id}}` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -250,6 +251,7 @@ if (!sent) {
 - A message of `Node` segments is sent as one merged forward of the messages they reference, through `SendMsg`, `SendGroupMsg`, or `SendPrivateMsg`; NapCat ignores the other segments of such a message. `Node` also sends an empty `nickname` and a null `content`, which NapCat requires on every node and ignores when `id` is set. NapCat skips a node whose message it does not know.
 - `NodeCustom` builds a node with a sender and a message of your own, and a content of only nodes nests a forward. NapCat shows that sender only when its packet backend works. Without it, the bot account sends the content to itself and forwards those messages, so the bot appears as their sender.
 - When NapCat sends a merged forward through its packet backend, `SentMessage::res_id` holds the forward's ID. It is empty for other messages, and for a forward that NapCat sent without the packet backend.
+- `Forward` sends a merged forward again, by the `SentMessage::res_id` of the send that made it. The standard only receives `forward` segments, and the `id` of a received one is a message ID for `GetForwardMsg`, which `Forward` cannot use. NapCat shows the card with its own placeholder preview instead of the messages.
 - NapCat silently drops some segments and still sends the rest: `at` in a private message, and `reply` or `face` with an ID it does not know.
 - NapCat first checks every segment against its own schema. A segment of a type it does not know, or one without a field that NapCat requires, fails the whole send with `Action` and retcode 400.
 - For other segment types or extra fields, build or change `type` and `data` directly, for example `image.data["summary"] = "[picture]";`.

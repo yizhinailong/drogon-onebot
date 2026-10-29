@@ -66,7 +66,7 @@
 
 ## 消息段构造函数
 
-已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`、`Record`、`Video`、`ContactFriend`、`ContactGroup`、`Json`、`Music`、`Rps`、`Dice`、`Node`、`NodeCustom`。
+已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`、`Record`、`Video`、`ContactFriend`、`ContactGroup`、`Json`、`Music`、`Rps`、`Dice`、`Node`、`NodeCustom`、`Forward`。
 
 - [x] `record`：语音
 - [x] `video`：短视频
@@ -74,7 +74,7 @@
 - [x] `dice`：掷骰子
 - [x] `contact`：推荐好友或群
 - [x] `music`：音乐分享
-- [ ] `forward`：合并转发，只在收到的消息里出现，内容用 `get_forward_msg` 获取
+- [x] `forward`：按 NapCat 的 `res_id` 再次发送合并转发；收到的 `forward` 用 `get_forward_msg` 获取内容
 - [x] `node`：按 ID 引用的合并转发节点
 - [x] `node`：自定义节点
 - [x] `json`：JSON 消息

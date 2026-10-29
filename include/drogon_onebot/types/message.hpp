@@ -178,6 +178,16 @@ namespace drogon_onebot {
             std::string nickname,
             Message content
         ) -> MessageSegment;
+
+        /**
+         * @brief Build a segment that sends a merged forward again, by NapCat's ID of it.
+         * @param res_id `SentMessage::res_id` of the send that made the forward.
+         * @return `{ "type": "forward", "data": { "id": <res_id> } }`.
+         * @note The standard only receives `forward` segments, and the `id` of a received one is
+         * a message ID for `OneBot::GetForwardMsg()`, which does not work here. NapCat sends
+         * the card with a placeholder preview instead of the messages.
+         */
+        [[nodiscard]] static auto Forward(std::string res_id) -> MessageSegment;
     };
 
     /**
@@ -227,7 +237,7 @@ namespace drogon_onebot {
      */
     struct SentMessage {
         std::int32_t message_id{}; ///< ID of the sent message, e.g. for `delete_msg`.
-        std::string res_id;        ///< NapCat's ID of the merged forward that a message of nodes sent; empty otherwise, and without NapCat's packet backend.
+        std::string res_id;        ///< NapCat's ID of the merged forward that a message of nodes sent, for `MessageSegment::Forward()`; empty otherwise, and without NapCat's packet backend.
     };
 
     /**

@@ -156,6 +156,13 @@ DROGON_TEST(NodeCustomCarriesSenderAndContent) {
     CHECK(nested.data["content"][0]["data"]["content"].size() == 2);
 }
 
+DROGON_TEST(ForwardSendsResIdAsId) {
+    auto const forward{ drogon_onebot::MessageSegment::Forward("Kx2lZ3k1Yq0Gm8Nc") };
+    CHECK(forward.type == "forward");
+    CHECK(forward.data["id"].asString() == "Kx2lZ3k1Yq0Gm8Nc");
+    CHECK(forward.data.size() == 1);
+}
+
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
     auto image{ drogon_onebot::MessageSegment::Image("https://example.com/a.png") };
     image.data["summary"] = "[picture]";
