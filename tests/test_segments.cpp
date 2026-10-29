@@ -64,6 +64,15 @@ DROGON_TEST(RecordPassesFileThrough) {
     }
 }
 
+DROGON_TEST(VideoPassesFileThrough) {
+    for (auto const* file : { "https://example.com/a.mp4", "/tmp/a.mp4", "base64://AAAAIGZ0eXA=" }) {
+        auto const video{ drogon_onebot::MessageSegment::Video(file) };
+        CHECK(video.type == "video");
+        CHECK(video.data["file"].asString() == file);
+        CHECK(video.data.size() == 1);
+    }
+}
+
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
     auto image{ drogon_onebot::MessageSegment::Image("https://example.com/a.png") };
     image.data["summary"] = "[picture]";

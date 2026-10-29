@@ -217,6 +217,7 @@ NapCat 在这些动作上的行为：
 | `Image(file)` | `{"type": "image", "data": {"file": file}}` |
 | `Face(id)` | `{"type": "face", "data": {"id": "<id>"}}` |
 | `Record(file)` | `{"type": "record", "data": {"file": file}}` |
+| `Video(file)` | `{"type": "video", "data": {"file": file}}` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -233,8 +234,9 @@ if (!sent) {
 ```
 
 - ID 以字符串发送，与标准示例的写法一致。NapCat 字符串和数字都接受。
-- `Image` 和 `Record` 接受 `http://` 或 `https://` URL、运行 OneBot 实现的主机上的 `file://` URI 或路径，或 `base64://` 加文件数据。NapCat 跑在 Docker 里时，路径指的是 NapCat 容器内的文件系统。`Record` 还接受收到的 `record` 消息段的 `file`。
+- `Image`、`Record` 和 `Video` 接受 `http://` 或 `https://` URL、运行 OneBot 实现的主机上的 `file://` URI 或路径，或 `base64://` 加文件数据。NapCat 跑在 Docker 里时，路径指的是 NapCat 容器内的文件系统。`Record` 和 `Video` 还接受收到的同类消息段的 `file`。
 - NapCat 用 ffmpeg 把语音转换成 QQ 的 SILK 格式。获取或转换文件失败时，整条消息以 `Action` 发送失败。
+- NapCat 用 ffmpeg 从视频里截取封面，截取不了时用默认封面。要发送别的封面，设置 NapCat 的扩展字段 `thumb`，例如 `video.data["thumb"] = "https://example.com/cover.jpg";`。
 - NapCat 会静默丢弃某些消息段，其余照常发送：私聊里的 `at`，以及 ID 不认识的 `reply` 或 `face`。
 - 其他消息段类型或额外字段，直接构造或修改 `type` 和 `data`，例如 `image.data["summary"] = "[图片]";`。
 - 收到的消息段里 ID 同样是字符串。收到的 `reply` 消息段的 `id` 是十进制字符串，传给 `GetMsg` 前要转成整数。

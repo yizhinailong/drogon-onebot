@@ -97,4 +97,15 @@ namespace drogon_onebot {
         return segment("record", "file", std::move(file));
     }
 
+    /**
+     * @brief Build a short video segment.
+     * @param file Video to send, in the forms that `Image()` takes, or the `file` of a received `video` segment.
+     * @return `{ "type": "video", "data": { "file": <file> } }`.
+     * @note NapCat takes the cover from the video with ffmpeg, or a default one when it cannot;
+     * set `data["thumb"]` to send another. It fails the whole send when it cannot fetch the file.
+     */
+    auto MessageSegment::Video(std::string file) -> MessageSegment {
+        return segment("video", "file", std::move(file));
+    }
+
 } // namespace drogon_onebot
