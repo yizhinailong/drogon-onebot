@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 4.0.0)
 project(
     drogon-onebot
     LANGUAGES CXX
-    VERSION 0.1.6
+    VERSION 0.1.7
 )
 
 option(DROGON_ONEBOT_BUILD_TESTS "Build the test executables" ${PROJECT_IS_TOP_LEVEL})
