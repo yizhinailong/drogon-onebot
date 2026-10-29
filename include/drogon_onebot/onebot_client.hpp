@@ -284,6 +284,17 @@ namespace drogon_onebot {
         [[nodiscard]] auto SetGroupLeave(
             SetGroupLeaveParams params
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `set_group_special_title`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing on success, or why the action failed.
+         * @note NapCat sets titles through its packet backend and fails with
+         * `ErrorKind::Action` (retcode 400) when that is unavailable.
+         */
+        [[nodiscard]] auto SetGroupSpecialTitle(
+            SetGroupSpecialTitleParams params
+        ) const -> drogon::Task<Result<void>>;
     };
 
     /**

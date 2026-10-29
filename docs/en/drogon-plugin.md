@@ -144,6 +144,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `SetGroupCard(SetGroupCardParams)` | `set_group_card` | Nothing (`Result<void>`) |
 | `SetGroupName(SetGroupNameParams)` | `set_group_name` | Nothing (`Result<void>`) |
 | `SetGroupLeave(SetGroupLeaveParams)` | `set_group_leave` | Nothing (`Result<void>`) |
+| `SetGroupSpecialTitle(SetGroupSpecialTitleParams)` | `set_group_special_title` | Nothing (`Result<void>`) |
 
 How typed actions read `data`:
 
@@ -169,6 +170,7 @@ NapCat's behavior with these actions:
 - `SetGroupBan` sends `duration` in seconds, 30 minutes by default as in the standard; 0 lifts the mute. NapCat's own default is 0. NapCat fails with `Action` for a member not in the group, for the owner, and for an admin unless the bot account owns the group.
 - `SetGroupAdmin` sends `enable`, true by default as in the standard. Without it, NapCat's `set_group_admin` would remove the admin role instead.
 - An empty `SetGroupCardParams::card` removes the card. NapCat's `set_group_card` reads the card back for about 3 seconds after setting it and fails with `Action` when it has not changed by then.
+- An empty `SetGroupSpecialTitleParams::special_title` removes the title. NapCat sets titles through its packet backend: without a working one, `set_group_special_title` fails with `Action` and retcode 400. NapCat ignores `duration`.
 
 ### Message segments
 

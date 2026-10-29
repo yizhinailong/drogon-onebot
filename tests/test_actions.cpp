@@ -524,6 +524,7 @@ namespace {
         serve_setter("set_group_card", "group card not applied");
         serve_setter("set_group_name", "set group name failed");
         serve_setter("set_group_leave", "group not found");
+        serve_setter("set_group_special_title", "packetBackend unavailable");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -1093,6 +1094,28 @@ DROGON_TEST(SetGroupLeavePassesActionError) {
     REQUIRE(!left.has_value());
     CHECK(left.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(left.error().message.contains("group not found"));
+}
+
+DROGON_TEST(SetGroupSpecialTitleSendsTitleAndDuration) {
+    auto const titled{ drogon::sync_wait(
+        plugin_bot().SetGroupSpecialTitle({ .group_id = TARGET_GROUP, .user_id = TARGET_USER, .special_title = "helper" })
+    ) };
+    CHECK(titled.has_value());
+    auto const body{ sent_to("set_group_special_title") };
+    CHECK(body["group_id"].asInt64() == TARGET_GROUP);
+    CHECK(body["user_id"].asInt64() == TARGET_USER);
+    CHECK(body["special_title"].asString() == "helper");
+    CHECK(body["duration"].isIntegral());
+    CHECK(body["duration"].asInt64() == -1);
+}
+
+DROGON_TEST(SetGroupSpecialTitlePassesActionError) {
+    auto const titled{ drogon::sync_wait(
+        bot_at("/failing").SetGroupSpecialTitle({ .group_id = TARGET_GROUP, .user_id = TARGET_USER, .special_title = "helper" })
+    ) };
+    REQUIRE(!titled.has_value());
+    CHECK(titled.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(titled.error().message.contains("packetBackend unavailable"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

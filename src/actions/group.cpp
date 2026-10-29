@@ -245,4 +245,28 @@ namespace drogon_onebot {
         co_return Result<void>{};
     }
 
+    /**
+     * @brief Call `set_group_special_title`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding nothing on success, or why the action failed.
+     * @note NapCat sets titles through its packet backend and fails with
+     * `ErrorKind::Action` (retcode 400) when that is unavailable.
+     */
+    auto OneBot::SetGroupSpecialTitle(
+        SetGroupSpecialTitleParams params
+    ) const -> drogon::Task<Result<void>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        body["group_id"] = params.group_id;
+        body["user_id"] = params.user_id;
+        body["special_title"] = params.special_title;
+        body["duration"] = params.duration;
+        auto const data{ co_await transport->Call("set_group_special_title", std::move(body), params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        co_return Result<void>{};
+    }
+
 } // namespace drogon_onebot

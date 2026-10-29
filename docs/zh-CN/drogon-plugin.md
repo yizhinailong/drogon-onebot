@@ -144,6 +144,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `SetGroupCard(SetGroupCardParams)` | `set_group_card` | 无（`Result<void>`） |
 | `SetGroupName(SetGroupNameParams)` | `set_group_name` | 无（`Result<void>`） |
 | `SetGroupLeave(SetGroupLeaveParams)` | `set_group_leave` | 无（`Result<void>`） |
+| `SetGroupSpecialTitle(SetGroupSpecialTitleParams)` | `set_group_special_title` | 无（`Result<void>`） |
 
 类型化动作读取 `data` 的规则：
 
@@ -169,6 +170,7 @@ NapCat 在这些动作上的行为：
 - `SetGroupBan` 以秒为单位发送 `duration`，默认 30 分钟，与标准一致；0 表示解除禁言。NapCat 自己的默认值是 0。对不在群里的成员、群主，以及机器人账号不是群主时的管理员，NapCat 以 `Action` 失败。
 - `SetGroupAdmin` 发送 `enable`，默认为 true，与标准一致。不带它时，NapCat 的 `set_group_admin` 反而会取消管理员。
 - `SetGroupCardParams::card` 为空时删除群名片。NapCat 的 `set_group_card` 设置后会在约 3 秒内读回群名片，到时仍未改变就以 `Action` 失败。
+- `SetGroupSpecialTitleParams::special_title` 为空时删除专属头衔。NapCat 通过 packetBackend 设置头衔：它不可用时，`set_group_special_title` 以 `Action` 失败，`retcode` 为 400。NapCat 忽略 `duration`。
 
 ### 消息段
 
