@@ -59,7 +59,7 @@
 
 实现状态：
 
-- [ ] `get_status`：运行状态
+- [x] `get_status`：运行状态
 - [ ] `get_version_info`：版本信息
 - [ ] `set_restart`：重启实现
 - [ ] `clean_cache`：清理缓存

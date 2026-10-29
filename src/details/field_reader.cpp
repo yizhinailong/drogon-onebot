@@ -76,6 +76,18 @@ namespace drogon_onebot::details {
     }
 
     /**
+     * @brief Read a boolean member that may be null, keeping absent apart from false.
+     * @param key Member name.
+     * @return The boolean, or empty when the member is absent; false after recording a problem.
+     */
+    auto FieldReader::NullableBool(char const* key) -> std::optional<bool> {
+        if (member(m_object, key).isNull()) {
+            return std::nullopt;
+        }
+        return Bool(key);
+    }
+
+    /**
      * @brief Read a required message member in array format.
      * @param key Member name.
      * @return The segments, or none after recording a problem.

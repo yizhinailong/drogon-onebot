@@ -4,6 +4,7 @@
  */
 #include <expected>
 #include <string>
+#include <utility>
 
 #include "details/field_reader.hpp"
 #include "details/json.hpp"
@@ -26,6 +27,24 @@ namespace {
             return std::unexpected{ fields.Problem() };
         }
         return answer;
+    }
+
+    /**
+     * @brief Read the `data` of `get_status`.
+     * @param data Object to read.
+     * @return The status, or the first problem found, e.g. `good is missing`.
+     */
+    auto to_status(Json::Value const& data) -> std::expected<drogon_onebot::Status, std::string> {
+        drogon_onebot::details::FieldReader fields{ data };
+        drogon_onebot::Status status{
+            .online = fields.NullableBool("online"),
+            .good = fields.RequiredBool("good"),
+            .raw = data,
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return status;
     }
 
 } // namespace
@@ -74,6 +93,28 @@ namespace drogon_onebot {
             co_return std::unexpected{ details::invalid_data_error("can_send_record", answer.error(), *data) };
         }
         co_return *answer;
+    }
+
+    /**
+     * @brief Call `get_status`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the implementation's running status, or why the action failed.
+     * @note NapCat always sends `good` as true, even while the account is offline, so check `online`.
+     */
+    auto OneBot::GetStatus(
+        GetStatusParams params
+    ) const -> drogon::Task<Result<Status>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        auto const data{ co_await transport->Call("get_status", Json::Value{ Json::objectValue }, params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        auto status{ to_status(*data) };
+        if (!status) {
+            co_return std::unexpected{ details::invalid_data_error("get_status", status.error(), *data) };
+        }
+        co_return std::move(*status);
     }
 
 } // namespace drogon_onebot

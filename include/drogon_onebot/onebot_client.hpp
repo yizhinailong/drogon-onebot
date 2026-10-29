@@ -437,6 +437,16 @@ namespace drogon_onebot {
         [[nodiscard]] auto CanSendRecord(
             CanSendRecordParams params = {}
         ) const -> drogon::Task<Result<CanSend>>;
+
+        /**
+         * @brief Call `get_status`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the implementation's running status, or why the action failed.
+         * @note NapCat always sends `good` as true, even while the account is offline, so check `online`.
+         */
+        [[nodiscard]] auto GetStatus(
+            GetStatusParams params = {}
+        ) const -> drogon::Task<Result<Status>>;
     };
 
     /**

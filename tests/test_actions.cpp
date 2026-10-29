@@ -862,6 +862,30 @@ namespace {
             data["yes"] = "true";
             return ok(data);
         });
+        serve("/get_status", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["online"] = true;
+            data["good"] = true;
+            data["stat"] = Json::Value{ Json::objectValue };
+            return ok(data);
+        });
+        serve("/unknown/get_status", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["online"] = Json::Value{};
+            data["good"] = false;
+            return ok(data);
+        });
+        serve("/bad/get_status", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["online"] = true;
+            return ok(data);
+        });
+        serve("/mistyped/get_status", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["online"] = 1;
+            data["good"] = true;
+            return ok(data);
+        });
         drogon::app().registerHandler(
             "/slow",
             [](drogon::HttpRequestPtr /*req*/) -> drogon::Task<drogon::HttpResponsePtr> {
@@ -1779,6 +1803,33 @@ DROGON_TEST(CanSendRecordRejectsMistypedAnswer) {
     REQUIRE(!able.has_value());
     CHECK(able.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
     CHECK(able.error().message.contains("yes is not a boolean"));
+}
+
+DROGON_TEST(GetStatusReadsStatus) {
+    auto const status{ drogon::sync_wait(plugin_bot().GetStatus()) };
+    REQUIRE(status.has_value());
+    CHECK(status->online == true);
+    CHECK(status->good);
+    CHECK(status->raw["stat"].isObject());
+}
+
+DROGON_TEST(GetStatusReadsNullOnlineAsUnknown) {
+    auto const status{ drogon::sync_wait(bot_at("/unknown").GetStatus()) };
+    REQUIRE(status.has_value());
+    CHECK(!status->online.has_value());
+    CHECK(!status->good);
+}
+
+DROGON_TEST(GetStatusRejectsInvalidStatus) {
+    auto const missing{ drogon::sync_wait(bot_at("/bad").GetStatus()) };
+    REQUIRE(!missing.has_value());
+    CHECK(missing.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(missing.error().message.contains("good is missing"));
+
+    auto const mistyped{ drogon::sync_wait(bot_at("/mistyped").GetStatus()) };
+    REQUIRE(!mistyped.has_value());
+    CHECK(mistyped.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(mistyped.error().message.contains("online is not a boolean"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {
