@@ -139,6 +139,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo`（`card`、`role`、`level`、`title` 及标准里的其他字段） |
 | `SetGroupKick(SetGroupKickParams)` | `set_group_kick` | 无（`Result<void>`） |
 | `SetGroupBan(SetGroupBanParams)` | `set_group_ban` | 无（`Result<void>`） |
+| `SetGroupWholeBan(SetGroupWholeBanParams)` | `set_group_whole_ban` | 无（`Result<void>`） |
 
 类型化动作读取 `data` 的规则：
 

@@ -519,6 +519,7 @@ namespace {
         serve("/bad/get_stranger_info", [](auto const&) { return ok(Json::Value{}); });
         serve_setter("set_group_kick", "get Uid Error");
         serve_setter("set_group_ban", "cannot ban owner");
+        serve_setter("set_group_whole_ban", "SetGroupWholeBan failed: ERR_NOT_GROUP_ADMIN");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -973,6 +974,28 @@ DROGON_TEST(SetGroupBanPassesActionError) {
     REQUIRE(!muted.has_value());
     CHECK(muted.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(muted.error().message.contains("cannot ban owner"));
+}
+
+DROGON_TEST(SetGroupWholeBanSendsEnable) {
+    auto const muted{ drogon::sync_wait(plugin_bot().SetGroupWholeBan({ .group_id = TARGET_GROUP })) };
+    CHECK(muted.has_value());
+    auto const mute{ sent_to("set_group_whole_ban") };
+    CHECK(mute["group_id"].asInt64() == TARGET_GROUP);
+    CHECK(mute["enable"].isBool());
+    CHECK(mute["enable"].asBool());
+
+    auto const lifted{ drogon::sync_wait(plugin_bot().SetGroupWholeBan({ .group_id = TARGET_GROUP, .enable = false })) };
+    CHECK(lifted.has_value());
+    auto const lift{ sent_to("set_group_whole_ban") };
+    CHECK(lift["enable"].isBool());
+    CHECK(!lift["enable"].asBool());
+}
+
+DROGON_TEST(SetGroupWholeBanPassesActionError) {
+    auto const muted{ drogon::sync_wait(bot_at("/failing").SetGroupWholeBan({ .group_id = TARGET_GROUP })) };
+    REQUIRE(!muted.has_value());
+    CHECK(muted.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(muted.error().message.contains("ERR_NOT_GROUP_ADMIN"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {
