@@ -242,6 +242,17 @@ namespace drogon_onebot {
         [[nodiscard]] auto SetGroupWholeBan(
             SetGroupWholeBanParams params
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `set_group_admin`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing on success, or why the action failed.
+         * @note NapCat does not check QQ's answer, so a change that QQ refuses, e.g. when
+         * the bot account does not own the group, still succeeds.
+         */
+        [[nodiscard]] auto SetGroupAdmin(
+            SetGroupAdminParams params
+        ) const -> drogon::Task<Result<void>>;
     };
 
     /**

@@ -520,6 +520,7 @@ namespace {
         serve_setter("set_group_kick", "get Uid Error");
         serve_setter("set_group_ban", "cannot ban owner");
         serve_setter("set_group_whole_ban", "SetGroupWholeBan failed: ERR_NOT_GROUP_ADMIN");
+        serve_setter("set_group_admin", "get Uid Error");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -996,6 +997,34 @@ DROGON_TEST(SetGroupWholeBanPassesActionError) {
     REQUIRE(!muted.has_value());
     CHECK(muted.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(muted.error().message.contains("ERR_NOT_GROUP_ADMIN"));
+}
+
+DROGON_TEST(SetGroupAdminSendsEnable) {
+    // NapCat reads a missing enable as false, so the default must be sent.
+    auto const promoted{ drogon::sync_wait(plugin_bot().SetGroupAdmin({ .group_id = TARGET_GROUP, .user_id = TARGET_USER })) };
+    CHECK(promoted.has_value());
+    auto const promote{ sent_to("set_group_admin") };
+    CHECK(promote["group_id"].asInt64() == TARGET_GROUP);
+    CHECK(promote["user_id"].asInt64() == TARGET_USER);
+    CHECK(promote["enable"].isBool());
+    CHECK(promote["enable"].asBool());
+
+    auto const demoted{
+        drogon::sync_wait(plugin_bot().SetGroupAdmin({ .group_id = TARGET_GROUP, .user_id = TARGET_USER, .enable = false }))
+    };
+    CHECK(demoted.has_value());
+    auto const demote{ sent_to("set_group_admin") };
+    CHECK(demote["enable"].isBool());
+    CHECK(!demote["enable"].asBool());
+}
+
+DROGON_TEST(SetGroupAdminPassesActionError) {
+    auto const promoted{
+        drogon::sync_wait(bot_at("/failing").SetGroupAdmin({ .group_id = TARGET_GROUP, .user_id = TARGET_USER }))
+    };
+    REQUIRE(!promoted.has_value());
+    CHECK(promoted.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(promoted.error().message.contains("get Uid Error"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

@@ -96,4 +96,14 @@ namespace drogon_onebot {
         double timeout{ 30.0 };  ///< Seconds to wait for the response; 0 waits forever.
     };
 
+    /**
+     * @brief Arguments of `OneBot::SetGroupAdmin()`.
+     */
+    struct SetGroupAdminParams {
+        std::int64_t group_id{}; ///< Group number.
+        std::int64_t user_id{};  ///< QQ number of the member.
+        bool enable{ true };     ///< Whether to make the member an admin; false removes the role.
+        double timeout{ 30.0 };  ///< Seconds to wait for the response; 0 waits forever.
+    };
+
 } // namespace drogon_onebot
