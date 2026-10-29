@@ -137,6 +137,18 @@ namespace drogon_onebot {
         ) const -> drogon::Task<Result<SentMessage>>;
 
         /**
+         * @brief Call `send_msg`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the sent message's ID, or why the action failed.
+         * @note Without `message_type`, NapCat sends to `group_id` when it is set and to
+         * `user_id` otherwise. With `private`, it sends to a non-friend `user_id` as a
+         * temporary chat through `group_id`.
+         */
+        [[nodiscard]] auto SendMsg(
+            SendMsgParams params
+        ) const -> drogon::Task<Result<SentMessage>>;
+
+        /**
          * @brief Call `delete_msg`.
          * @param params Request fields, taken by value so they outlive the caller's frame.
          * @return Task yielding nothing once the message is recalled, or why the action failed.

@@ -275,6 +275,34 @@ namespace {
     }
 
     /**
+     * @brief Check the parameters of `send_msg`, choosing the target as NapCat does.
+     *
+     * Without `message_type`, NapCat sends to `group_id` when it is set and to `user_id`
+     * otherwise. Unlike NapCat, this rejects any member sent with an empty or unknown value.
+     * @param req Request to the fake action.
+     * @return What `check_send` answers for the chosen target, or `failed` when there is none.
+     */
+    auto check_send_msg(drogon::HttpRequestPtr const& req) -> drogon::HttpResponsePtr {
+        auto const body{ body_of(req) };
+        auto const type{ body["message_type"].isString() ? body["message_type"].asString() : "" };
+        if (body.isMember("message_type") && type != "private" && type != "group") {
+            return envelope("failed", 1400, Json::Value{}, "wrong message_type");
+        }
+        for (auto const& [key, expected] : { std::pair{ "user_id", TARGET_USER }, std::pair{ "group_id", TARGET_GROUP } }) {
+            if (body.isMember(key) && (!body[key].isIntegral() || body[key].asInt64() != expected)) {
+                return envelope("failed", 1400, Json::Value{}, std::string{ "wrong " } + key);
+            }
+        }
+        if (type == "group" || (type.empty() && body.isMember("group_id"))) {
+            return check_send(req, "group_id", TARGET_GROUP, GROUP_MESSAGE_ID);
+        }
+        if (body.isMember("user_id")) {
+            return check_send(req, "user_id", TARGET_USER, PRIVATE_MESSAGE_ID);
+        }
+        return envelope("failed", FAILED_RETCODE, Json::Value{}, "no group_id or user_id");
+    }
+
+    /**
      * @brief Serve `make(req)` at `POST path` on the app's listener.
      * @param path Request path, e.g. `/get_login_info`.
      * @param make Builds the response for each request.
@@ -344,6 +372,7 @@ namespace {
         serve("/send_group_msg", [](drogon::HttpRequestPtr const& req) {
             return check_send(req, "group_id", TARGET_GROUP, GROUP_MESSAGE_ID);
         });
+        serve("/send_msg", check_send_msg);
         serve("/bad/get_login_info", [](auto const&) {
             Json::Value data{ Json::objectValue };
             data["nickname"] = "no user_id";
@@ -560,7 +589,7 @@ DROGON_TEST(SendGroupMsgSendsSegments) {
     CHECK(sent_message->message_id == GROUP_MESSAGE_ID);
 }
 
-DROGON_TEST(SendMsgRejectsMissingMessageId) {
+DROGON_TEST(SendPrivateMsgRejectsMissingMessageId) {
     auto const sent_message{
         drogon::sync_wait(bot_at("/bad").SendPrivateMsg({ .user_id = TARGET_USER, .message = hi_message() }))
     };
@@ -569,13 +598,43 @@ DROGON_TEST(SendMsgRejectsMissingMessageId) {
     CHECK(sent_message.error().message.contains("message_id"));
 }
 
-DROGON_TEST(SendMsgPassesActionError) {
+DROGON_TEST(SendGroupMsgPassesActionError) {
     auto const sent_message{
         drogon::sync_wait(bot_at("/failing").SendGroupMsg({ .group_id = TARGET_GROUP, .message = hi_message() }))
     };
     REQUIRE(!sent_message.has_value());
     CHECK(sent_message.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(sent_message.error().message.contains("group muted"));
+}
+
+DROGON_TEST(SendMsgSendsOnlySetTargets) {
+    // The fake rejects empty or wrong values, so a member sent while unset fails these.
+    auto const to_group{ drogon::sync_wait(plugin_bot().SendMsg({ .group_id = TARGET_GROUP, .message = hi_message() })) };
+    REQUIRE(to_group.has_value());
+    CHECK(to_group->message_id == GROUP_MESSAGE_ID);
+
+    auto const to_user{ drogon::sync_wait(plugin_bot().SendMsg({ .user_id = TARGET_USER, .message = hi_message() })) };
+    REQUIRE(to_user.has_value());
+    CHECK(to_user->message_id == PRIVATE_MESSAGE_ID);
+}
+
+DROGON_TEST(SendMsgSendsMessageType) {
+    // With both IDs, the fake sends to the group unless message_type says otherwise.
+    auto const sent_message{ drogon::sync_wait(plugin_bot().SendMsg({
+        .message_type = "private",
+        .user_id = TARGET_USER,
+        .group_id = TARGET_GROUP,
+        .message = hi_message(),
+    })) };
+    REQUIRE(sent_message.has_value());
+    CHECK(sent_message->message_id == PRIVATE_MESSAGE_ID);
+}
+
+DROGON_TEST(SendMsgPassesMissingTargetError) {
+    auto const sent_message{ drogon::sync_wait(plugin_bot().SendMsg({ .message = hi_message() })) };
+    REQUIRE(!sent_message.has_value());
+    CHECK(sent_message.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(sent_message.error().message.contains("no group_id or user_id"));
 }
 
 DROGON_TEST(DeleteMsgAcceptsNullData) {

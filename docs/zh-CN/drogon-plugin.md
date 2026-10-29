@@ -130,6 +130,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetStrangerInfo(GetStrangerInfoParams)` | `get_stranger_info` | `StrangerInfo`（`user_id`、`nickname`、`sex`、`age`） |
 | `SendPrivateMsg(SendPrivateMsgParams)` | `send_private_msg` | `SentMessage`（`message_id`） |
 | `SendGroupMsg(SendGroupMsgParams)` | `send_group_msg` | `SentMessage`（`message_id`） |
+| `SendMsg(SendMsgParams)` | `send_msg` | `SentMessage`（`message_id`） |
 | `DeleteMsg(DeleteMsgParams)` | `delete_msg` | 无（`Result<void>`） |
 | `GetMsg(GetMsgParams)` | `get_msg` | `MessageInfo`（`time`、`message_type`、`message_id`、`real_id`、`group_id`、`sender`、`message`、`raw_message`） |
 | `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo`（`group_id`、`group_name`、`member_count`、`max_member_count`） |
@@ -145,6 +146,8 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 
 NapCat 在这些动作上的行为：
 
+- `SendMsgParams` 的 `message_type`、`user_id`、`group_id` 只在设置了时才发送。不带 `message_type` 时，NapCat 的 `send_msg` 在设置了 `group_id` 时发到群里，否则发给 `user_id`。`message_type` 为 `private` 时，如果 `user_id` 不是好友，NapCat 通过 `group_id` 发临时会话。
+- `SendMsgParams` 的字段与 `MessageEvent` 对应，回调可以用同一种写法回复私聊和群消息：`bot.SendMsg({ .message_type = event.message_type, .user_id = event.user_id, .group_id = event.group_id, .message = reply })`。
 - `no_cache` 是 `std::optional<bool>`，只在设置了时才发送。不带 `no_cache` 时，NapCat 的 `get_group_member_info` 会跳过缓存、重新获取，尽管标准的默认值是 false。NapCat 的 `get_group_info` 忽略 `no_cache`。
 - NapCat 只在内存里保存消息 ID，默认 5000 条。对 NapCat 上次重启之前的 ID，`GetMsg` 和 `DeleteMsg` 以 `Action` 失败。
 - `GroupMemberInfo::nickname` 是 QQ 昵称，群名片是 `card`。NapCat 对部分成员不给 `role`，所以它可能为空。
@@ -243,7 +246,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 
 - 只实现了 HTTP API 和 HTTP POST 上报，没有正向 WebSocket 和反向 WebSocket。
 - 不支持上报响应里的快速操作。
-- 类型化动作有八个，见“调用动作”一节的表格，其余动作先用 `CallAction`。
+- 类型化动作见“调用动作”一节的表格，其余动作先用 `CallAction`。
 - 通知、请求、元事件只有公共字段和子类型是类型化的，其余字段从 `raw` 读取。
 
 ## 测试
@@ -259,7 +262,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 | 程序 | 覆盖内容 |
 |---|---|
 | `test_config` | 不启动 app，直接调用 `initAndStart`：必填项、两个 `_env` 的读取与报错、`event_path` 校验，以及仓库里的 config.json 能通过校验。 |
-| `test_actions` | 假的 NapCat HTTP API。`CallAction` 的请求体、`Authorization`、`base_url` 路径前缀；`async`；全部五种 `ErrorKind`（`failed`、只有 `wording`、404、403、非 JSON、无 `status`、未知 `status`、超时、连接失败）；八个类型化动作在 NapCat 形状的 `data` 下成功、`data` 缺字段或字段类型不对、`Action` 错误，以及 `no_cache` 只在设置时发送。 |
+| `test_actions` | 假的 NapCat HTTP API。`CallAction` 的请求体、`Authorization`、`base_url` 路径前缀；`async`；全部五种 `ErrorKind`（`failed`、只有 `wording`、404、403、非 JSON、无 `status`、未知 `status`、超时、连接失败）；类型化动作在 NapCat 形状的 `data` 下成功、`data` 缺字段或字段类型不对、`Action` 错误，以及 `no_cache` 和 `send_msg` 的目标只在设置时发送。 |
 | `test_events` | 带签名的事件路由。RFC 2202 向量校验测试自带的 HMAC；用 Python 独立算出的 NapCat 签名；大写签名；字符串 ID 的群消息；401、403、400 各种拒收且回调不运行；四种事件的分发；丢弃 `message_sent`；多个回调都运行；回调抛异常后服务继续；应答不等慢回调。 |
 | `test_events_unsigned` | 去掉 `secret_env` 的事件路由：接受无签名事件，忽略任意 `X-Signature`。 |
 | `test_segments` | 不启动 app：每个 `MessageSegment` 函数构造的消息段，包括以字符串发送的 ID，以及混合构造和手写消息段的消息。 |

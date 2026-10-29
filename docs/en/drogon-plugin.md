@@ -130,6 +130,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetStrangerInfo(GetStrangerInfoParams)` | `get_stranger_info` | `StrangerInfo` (`user_id`, `nickname`, `sex`, `age`) |
 | `SendPrivateMsg(SendPrivateMsgParams)` | `send_private_msg` | `SentMessage` (`message_id`) |
 | `SendGroupMsg(SendGroupMsgParams)` | `send_group_msg` | `SentMessage` (`message_id`) |
+| `SendMsg(SendMsgParams)` | `send_msg` | `SentMessage` (`message_id`) |
 | `DeleteMsg(DeleteMsgParams)` | `delete_msg` | Nothing (`Result<void>`) |
 | `GetMsg(GetMsgParams)` | `get_msg` | `MessageInfo` (`time`, `message_type`, `message_id`, `real_id`, `group_id`, `sender`, `message`, `raw_message`) |
 | `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo` (`group_id`, `group_name`, `member_count`, `max_member_count`) |
@@ -145,6 +146,8 @@ How typed actions read `data`:
 
 NapCat's behavior with these actions:
 
+- `SendMsgParams` sends `message_type`, `user_id`, and `group_id` only when they are set. Without `message_type`, NapCat's `send_msg` sends to `group_id` when it is set and to `user_id` otherwise. With `private`, it sends to a `user_id` that is not a friend as a temporary chat through `group_id`.
+- `SendMsgParams` mirrors `MessageEvent`, so a callback can answer private and group messages alike: `bot.SendMsg({ .message_type = event.message_type, .user_id = event.user_id, .group_id = event.group_id, .message = reply })`.
 - `no_cache` is a `std::optional<bool>` and is sent only when set. When it is absent, NapCat's `get_group_member_info` skips its cache and fetches fresh data, although the standard's default is false. NapCat's `get_group_info` ignores `no_cache`.
 - NapCat keeps message IDs in memory only, 5000 of them by default. `GetMsg` and `DeleteMsg` fail with `Action` for an ID from before NapCat's last restart.
 - `GroupMemberInfo::nickname` is the QQ nickname; the group card is `card`. NapCat leaves out `role` for some members, so it can be empty.
@@ -243,7 +246,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 
 - Only the HTTP API and HTTP POST reporting are implemented. There is no forward or reverse WebSocket.
 - Quick operations in the report response are not supported.
-- There are eight typed actions, listed in the table under "Calling actions". Use `CallAction` for the other actions for now.
+- The typed actions are listed in the table under "Calling actions". Use `CallAction` for the other actions for now.
 - For notice, request, and meta events, only the common fields and the subtypes are typed. Read the other fields from `raw`.
 
 ## Tests
@@ -259,7 +262,7 @@ All tests run offline. The tests that need a server use the same app as a stand-
 | Program | What it covers |
 |---|---|
 | `test_config` | Calls `initAndStart` directly without starting the app: the required key, reading both `_env` keys and their errors, `event_path` validation, and that the config.json in the repository passes validation. |
-| `test_actions` | A fake NapCat HTTP API. `CallAction`'s request body, `Authorization`, and `base_url` path prefix; `async`; all five `ErrorKind`s (`failed`, `wording` only, 404, 403, non-JSON, no `status`, unknown `status`, timeout, connection failure); and for the eight typed actions, success with `data` shaped like NapCat's, missing or mistyped `data` fields, `Action` errors, and `no_cache` being sent only when set. |
+| `test_actions` | A fake NapCat HTTP API. `CallAction`'s request body, `Authorization`, and `base_url` path prefix; `async`; all five `ErrorKind`s (`failed`, `wording` only, 404, 403, non-JSON, no `status`, unknown `status`, timeout, connection failure); and for the typed actions, success with `data` shaped like NapCat's, missing or mistyped `data` fields, `Action` errors, and `no_cache` and the `send_msg` targets being sent only when set. |
 | `test_events` | The signed event route. RFC 2202 vectors check the test's own HMAC; a NapCat signature computed independently with Python; uppercase signatures; a group message with string IDs; the 401, 403, and 400 rejections, with no callback run; dispatch of all four event types; `message_sent` dropped; several callbacks all run; the service continuing after a callback throws; the response not waiting for a slow callback. |
 | `test_events_unsigned` | The event route without `secret_env`: unsigned events are accepted, and any `X-Signature` is ignored. |
 | `test_segments` | Without starting the app: the segments that each `MessageSegment` function builds, including IDs sent as strings, and a message that mixes built and hand-written segments. |

@@ -74,6 +74,34 @@ namespace drogon_onebot {
     }
 
     /**
+     * @brief Call `send_msg`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the sent message's ID, or why the action failed.
+     * @note Without `message_type`, NapCat sends to `group_id` when it is set and to
+     * `user_id` otherwise. With `private`, it sends to a non-friend `user_id` as a
+     * temporary chat through `group_id`.
+     */
+    auto OneBot::SendMsg(
+        SendMsgParams params
+    ) const -> drogon::Task<Result<SentMessage>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        if (!params.message_type.empty()) {
+            body["message_type"] = params.message_type;
+        }
+        if (params.user_id) {
+            body["user_id"] = *params.user_id;
+        }
+        if (params.group_id) {
+            body["group_id"] = *params.group_id;
+        }
+        body["message"] = details::to_json(params.message);
+        auto const data{ co_await transport->Call("send_msg", std::move(body), params.timeout) };
+        co_return to_sent_message("send_msg", data);
+    }
+
+    /**
      * @brief Call `delete_msg`.
      * @param params Request fields, taken by value so they outlive the caller's frame.
      * @return Task yielding nothing once the message is recalled, or why the action failed.

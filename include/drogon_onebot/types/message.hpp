@@ -111,7 +111,21 @@ namespace drogon_onebot {
     };
 
     /**
-     * @brief Message the OneBot implementation sent, from `send_private_msg` or `send_group_msg`.
+     * @brief Arguments of `OneBot::SendMsg()`.
+     *
+     * The fields mirror `MessageEvent`, so a handler can answer either kind of message
+     * with the event's own `message_type`, `user_id`, and `group_id`.
+     */
+    struct SendMsgParams {
+        std::string message_type;             ///< `private` or `group`; empty lets the implementation choose from the IDs.
+        std::optional<std::int64_t> user_id;  ///< QQ number of the recipient of a private message; empty sends none.
+        std::optional<std::int64_t> group_id; ///< Group number to send to; empty sends none.
+        Message message;                      ///< Message to send.
+        double timeout{ 30.0 };               ///< Seconds to wait for the response; 0 waits forever.
+    };
+
+    /**
+     * @brief Message the OneBot implementation sent, from `send_private_msg`, `send_group_msg`, or `send_msg`.
      */
     struct SentMessage {
         std::int32_t message_id{}; ///< ID of the sent message, e.g. for `delete_msg`.
