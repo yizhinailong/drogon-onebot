@@ -34,6 +34,8 @@ namespace {
     constexpr std::int32_t CSRF_TOKEN{ 123456789 };                ///< CSRF token of the fake `get_csrf_token` and `get_credentials`, and `bkn` of `get_cookies`.
     constexpr char const* RECORD_FILE{ "8C1B4E7B.amr" };           ///< `file` of the voice that the fake `get_record` knows, a NapCat file name.
     constexpr char const* RECORD_PATH{ "/ptt/8C1B4E7B.amr" };      ///< Path of `RECORD_FILE` on the fake NapCat's host.
+    constexpr char const* IMAGE_FILE{ "6B4DE3DF.jpg" };            ///< `file` of the image that the fake `get_image` knows, a NapCat file name.
+    constexpr char const* IMAGE_PATH{ "/pic/6B4DE3DF.jpg" };       ///< Path of `IMAGE_FILE` on the fake NapCat's host.
     constexpr int FAILED_RETCODE{ 100 };                           ///< `retcode` of the fake actions that fail.
     constexpr double SLOW_DELAY{ 1.0 };                            ///< Seconds that the fake `slow` action takes.
 
@@ -435,6 +437,19 @@ namespace {
     }
 
     /**
+     * @brief Build NapCat's `get_image` data for `IMAGE_FILE`, as `enableLocalFile2Url` off leaves it.
+     * @return The local path, QQ's URL of the image, and its size and name, without `base64`.
+     */
+    auto image_file() -> Json::Value {
+        Json::Value data{ Json::objectValue };
+        data["file"] = IMAGE_PATH;
+        data["url"] = "https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=abc";
+        data["file_size"] = "1024";
+        data["file_name"] = IMAGE_FILE;
+        return data;
+    }
+
+    /**
      * @brief Answer a fake action that checks one ID parameter.
      * @param req Request to the fake action.
      * @param key Name of the ID parameter.
@@ -813,6 +828,17 @@ namespace {
         serve("/bad/get_record", [](auto const&) {
             Json::Value data{ Json::objectValue };
             data["url"] = RECORD_PATH;
+            return ok(data);
+        });
+        serve("/get_image", [](drogon::HttpRequestPtr const& req) {
+            if (body_of(req)["file"].asString() != IMAGE_FILE) {
+                return envelope("failed", FAILED_RETCODE, Json::Value{}, "file not found");
+            }
+            return ok(image_file());
+        });
+        serve("/bad/get_image", [](auto const&) {
+            auto data{ image_file() };
+            data["file"] = 1;
             return ok(data);
         });
         drogon::app().registerHandler(
@@ -1679,6 +1705,29 @@ DROGON_TEST(GetRecordPassesActionError) {
     REQUIRE(!record.has_value());
     CHECK(record.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(record.error().message.contains("file not found"));
+}
+
+DROGON_TEST(GetImageReadsFile) {
+    auto const image{ drogon::sync_wait(plugin_bot().GetImage({ .file = IMAGE_FILE })) };
+    REQUIRE(image.has_value());
+    CHECK(image->file == IMAGE_PATH);
+    CHECK(image->raw["url"].asString().starts_with("https://"));
+    CHECK(image->raw["file_name"].asString() == IMAGE_FILE);
+    CHECK(!image->raw.isMember("base64"));
+}
+
+DROGON_TEST(GetImageRejectsMistypedFile) {
+    auto const image{ drogon::sync_wait(bot_at("/bad").GetImage({ .file = IMAGE_FILE })) };
+    REQUIRE(!image.has_value());
+    CHECK(image.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(image.error().message.contains("file is not a string"));
+}
+
+DROGON_TEST(GetImagePassesActionError) {
+    auto const image{ drogon::sync_wait(plugin_bot().GetImage({ .file = "unknown.jpg" })) };
+    REQUIRE(!image.has_value());
+    CHECK(image.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(image.error().message.contains("file not found"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

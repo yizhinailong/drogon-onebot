@@ -155,6 +155,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetCsrfToken(GetCsrfTokenParams)` | `get_csrf_token` | `CsrfToken` (`token`) |
 | `GetCredentials(GetCredentialsParams)` | `get_credentials` | `Credentials` (`cookies`, `csrf_token`) |
 | `GetRecord(GetRecordParams)` | `get_record` | `FileInfo` (`file`) |
+| `GetImage(GetImageParams)` | `get_image` | `FileInfo` (`file`) |
 
 How typed actions read `data`:
 
@@ -189,7 +190,8 @@ NapCat's behavior with these actions:
 - NapCat computes the `get_csrf_token` token from the account's `skey`, which it fetches through a QQ login, and fails with `Action` when it cannot get one.
 - `GetCredentials` sends `domain` the same way as `GetCookies`. NapCat's `get_credentials` answers with the token as `token`, like `get_csrf_token`, instead of the standard's `csrf_token`; `GetCredentials` reads either. NapCat computes the token from the `skey` among the cookies and sends 0 when there is none.
 - `GetRecord` takes the `file` of a received `record` segment and always sends `out_format`, because NapCat's `get_record` fails with `Action` and retcode 400 without it; with an empty one, NapCat skips the conversion. NapCat converts the voice with ffmpeg next to the original and also answers with the converted content as `base64` in `FileInfo::raw`.
-- `FileInfo::file` is a path on NapCat's host. When NapCat runs in a container, read the content from `base64` instead.
+- `GetImage` takes the `file` of a received `image` segment. NapCat downloads the image and answers with `base64` only when its `enableLocalFile2Url` setting is on, which it is not by default. Its `url` is the image's URL at QQ when NapCat can get one, and the path otherwise.
+- `FileInfo::file` is a path on NapCat's host. When NapCat runs in a container, read the content from `base64` instead, or download the image from `url`.
 - NapCat looks `file` up among the media of the messages it has received, kept in memory until a day after their last use, and otherwise searches QQ's file assistant by that name. It fails with `Action` when neither has the file.
 
 ### Message segments

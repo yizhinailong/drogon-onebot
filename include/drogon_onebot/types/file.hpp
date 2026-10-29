@@ -20,7 +20,15 @@ namespace drogon_onebot {
     };
 
     /**
-     * @brief File that the OneBot implementation fetched, from `get_record`.
+     * @brief Arguments of `OneBot::GetImage()`.
+     */
+    struct GetImageParams {
+        std::string file;       ///< `file` of a received `image` segment.
+        double timeout{ 30.0 }; ///< Seconds to wait for the response; 0 waits forever.
+    };
+
+    /**
+     * @brief File that the OneBot implementation fetched, from `get_record` or `get_image`.
      */
     struct FileInfo {
         std::string file; ///< Path of the file on the implementation's host, e.g. inside NapCat's container.

@@ -63,4 +63,29 @@ namespace drogon_onebot {
         co_return std::move(*info);
     }
 
+    /**
+     * @brief Call `get_image`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the downloaded image file, or why the action failed.
+     * @note NapCat answers with the content as `base64` only when its `enableLocalFile2Url`
+     * setting is on. It finds `file` as `GetRecord()` describes.
+     */
+    auto OneBot::GetImage(
+        GetImageParams params
+    ) const -> drogon::Task<Result<FileInfo>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        body["file"] = params.file;
+        auto const data{ co_await transport->Call("get_image", std::move(body), params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        auto info{ to_file_info(*data) };
+        if (!info) {
+            co_return std::unexpected{ details::invalid_data_error("get_image", info.error(), *data) };
+        }
+        co_return std::move(*info);
+    }
+
 } // namespace drogon_onebot

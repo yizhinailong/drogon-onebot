@@ -405,6 +405,17 @@ namespace drogon_onebot {
         [[nodiscard]] auto GetRecord(
             GetRecordParams params
         ) const -> drogon::Task<Result<FileInfo>>;
+
+        /**
+         * @brief Call `get_image`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the downloaded image file, or why the action failed.
+         * @note NapCat answers with the content as `base64` only when its `enableLocalFile2Url`
+         * setting is on. It finds `file` as `GetRecord()` describes.
+         */
+        [[nodiscard]] auto GetImage(
+            GetImageParams params
+        ) const -> drogon::Task<Result<FileInfo>>;
     };
 
     /**

@@ -155,6 +155,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetCsrfToken(GetCsrfTokenParams)` | `get_csrf_token` | `CsrfToken`（`token`） |
 | `GetCredentials(GetCredentialsParams)` | `get_credentials` | `Credentials`（`cookies`、`csrf_token`） |
 | `GetRecord(GetRecordParams)` | `get_record` | `FileInfo`（`file`） |
+| `GetImage(GetImageParams)` | `get_image` | `FileInfo`（`file`） |
 
 类型化动作读取 `data` 的规则：
 
@@ -189,7 +190,8 @@ NapCat 在这些动作上的行为：
 - NapCat 的 `get_csrf_token` 用账号的 `skey` 计算 token，`skey` 通过登录 QQ 获取，获取不到时以 `Action` 失败。
 - `GetCredentials` 与 `GetCookies` 一样总是发送 `domain`。NapCat 的 `get_credentials` 和 `get_csrf_token` 一样把 token 放在 `token` 里，而不是标准的 `csrf_token`；`GetCredentials` 两种都能读取。NapCat 用 cookies 里的 `skey` 计算 token，没有 `skey` 时发 0。
 - `GetRecord` 接受收到的 `record` 消息段的 `file`，并总是发送 `out_format`，因为不带它时 NapCat 的 `get_record` 以 `Action` 失败，`retcode` 为 400；`out_format` 为空时 NapCat 不转换格式。NapCat 用 ffmpeg 在原文件旁边转换语音，还会把转换后的内容以 `base64` 放在 `FileInfo::raw` 里。
-- `FileInfo::file` 是 NapCat 主机上的路径。NapCat 跑在容器里时，改从 `base64` 读取内容。
+- `GetImage` 接受收到的 `image` 消息段的 `file`。NapCat 下载图片，只有开启了 `enableLocalFile2Url` 设置（默认关闭）时才返回 `base64`。它的 `url` 在 NapCat 能获取到时是 QQ 上的图片地址，否则是本地路径。
+- `FileInfo::file` 是 NapCat 主机上的路径。NapCat 跑在容器里时，改从 `base64` 读取内容，或者从 `url` 下载图片。
 - NapCat 在它收到的消息的媒体里查找 `file`，这些记录在内存里保留到最后一次使用后一天；找不到时按这个名字在 QQ 的文件助手里搜索，仍找不到时以 `Action` 失败。
 
 ### 消息段
