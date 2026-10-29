@@ -315,6 +315,27 @@ namespace {
     }
 
     /**
+     * @brief Read the fields of a `group_recall` notice.
+     * @param root Notice object.
+     * @return The fields, or the first problem found, e.g. `message_id is missing`.
+     */
+    auto to_group_recall_notice(
+        Json::Value const& root
+    ) -> std::expected<drogon_onebot::GroupRecallNotice, std::string> {
+        FieldReader fields{ root };
+        drogon_onebot::GroupRecallNotice notice{
+            .group_id = fields.RequiredInteger<std::int64_t>("group_id"),
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .operator_id = fields.RequiredInteger<std::int64_t>("operator_id"),
+            .message_id = fields.RequiredInteger<std::int32_t>("message_id"),
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return notice;
+    }
+
+    /**
      * @brief Read the type-specific fields of a notice.
      * @param root Notice object.
      * @param notice_type The notice's `notice_type`.
@@ -342,6 +363,9 @@ namespace {
         }
         if (notice_type == "friend_add") {
             return to_friend_add_notice(root);
+        }
+        if (notice_type == "group_recall") {
+            return to_group_recall_notice(root);
         }
         return drogon_onebot::NoticeDetail{};
     }

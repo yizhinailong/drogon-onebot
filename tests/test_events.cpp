@@ -469,6 +469,21 @@ DROGON_TEST(ParsesFriendAddNotice) {
     CHECK(added->user_id == 20002);
 }
 
+DROGON_TEST(ParsesGroupRecallNotice) {
+    auto recall_json{ group_notice("group_recall") };
+    recall_json["operator_id"] = 40004;
+    recall_json["message_id"] = -2147000001;
+    CHECK(post_signed(recall_json)->getStatusCode() == drogon::k204NoContent);
+    auto const notice{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(notice.has_value());
+    auto const* const recall{ std::get_if<drogon_onebot::GroupRecallNotice>(&notice->detail) };
+    REQUIRE(recall != nullptr);
+    CHECK(recall->group_id == 30003);
+    CHECK(recall->user_id == 20002);
+    CHECK(recall->operator_id == 40004);
+    CHECK(recall->message_id == -2147000001);
+}
+
 DROGON_TEST(RejectsNoticeWithoutTypedField) {
     auto upload_json{ group_notice("group_upload") };
     upload_json["file"]["id"] = "Ae7bVzY2Pq";

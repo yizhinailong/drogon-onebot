@@ -89,7 +89,7 @@
 - [x] `group_increase`：成员增加，`group_id`、`operator_id`、`user_id`
 - [x] `group_ban`：禁言，`group_id`、`operator_id`、`user_id`、`duration`
 - [x] `friend_add`：新好友，`user_id`
-- [ ] `group_recall`：群消息撤回，`group_id`、`user_id`、`operator_id`、`message_id`
+- [x] `group_recall`：群消息撤回，`group_id`、`user_id`、`operator_id`、`message_id`
 - [ ] `friend_recall`：好友消息撤回，`user_id`、`message_id`
 - [ ] `notify` 的 `poke`：戳一戳，`group_id`、`user_id`、`target_id`
 

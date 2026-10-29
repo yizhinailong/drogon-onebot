@@ -96,11 +96,21 @@ namespace drogon_onebot {
     };
 
     /**
+     * @brief Fields of a `group_recall` notice: a group message was recalled.
+     */
+    struct GroupRecallNotice {
+        std::int64_t group_id{};    ///< Group number.
+        std::int64_t user_id{};     ///< QQ number of the member who sent the message.
+        std::int64_t operator_id{}; ///< QQ number of the member who recalled it: the sender or an admin.
+        std::int32_t message_id{};  ///< ID of the recalled message, as in its `MessageEvent::message_id`.
+    };
+
+    /**
      * @brief Type-specific fields of a notice, chosen by its `notice_type` and `sub_type`.
      *
      * `std::monostate` for any other notice, such as NapCat's extensions, whose fields stay in `NoticeEvent::raw`.
      */
-    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice, GroupIncreaseNotice, GroupBanNotice, FriendAddNotice>;
+    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice, GroupIncreaseNotice, GroupBanNotice, FriendAddNotice, GroupRecallNotice>;
 
     /**
      * @brief Event with `post_type` `notice`, e.g. a group member joining or a message being recalled.

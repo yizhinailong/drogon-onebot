@@ -285,6 +285,7 @@ if (!sent) {
 | `group_increase` | `GroupIncreaseNotice` | `group_id`、`operator_id`、`user_id`；`sub_type` 为 `approve` 或 `invite` |
 | `group_ban` | `GroupBanNotice` | `group_id`、`operator_id`、`user_id`、`duration`；`sub_type` 为 `ban` 或 `lift_ban` |
 | `friend_add` | `FriendAddNotice` | `user_id` |
+| `group_recall` | `GroupRecallNotice` | `group_id`、`user_id`、`operator_id`、`message_id` |
 
 ```cpp
 plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
