@@ -16,8 +16,20 @@ Drogon plugin library for the OneBot v11 protocol, consumed by other Drogon apps
   `initAndStart` throws `std::invalid_argument` if `base_url` is empty, if `event_path` is invalid, or if a named variable is unset or empty. Add new keys to `OneBotConfig`, `initAndStart`, the class doc comment, `config.json`, and the tables in `docs/*/drogon-plugin.md`.
 - `OneBotClient::NewOneBotClient()` returns a `OneBot` by value. `OneBot` is a value handle whose only state is one `std::shared_ptr<details::Transport>`, so copies are cheap and go into coroutines by value. Its methods are coroutines returning `drogon::Task<Result<T>>` (`std::expected<T, Error>`, in `error.hpp`); there is no sync API.
 - `OneBot` methods mirror OneBot v11 action names (`SendPrivateMsg` calls `send_private_msg`), as the common OneBot SDKs (NoneBot2, aiocqhttp) do, so there are no API group members. Request and response structs live in `types/`, one header per category; the method bodies live in `src/actions/<category>.cpp`. `CallAction(CallActionParams)` reaches any action, including implementation extensions, and yields the envelope's raw `data`.
-- The typed actions `GetLoginInfo`, `SendPrivateMsg`, and `SendGroupMsg` call `details::Transport::Call` and read their result from `data` with the helpers in `src/details/json.hpp`. A `data` without the expected field (including the null `data` of an `async` reply) is `ResponseValidation`, with `data` as the error body. Integers are read with `details::read_integer<T>`, which accepts JSON numbers and decimal strings, because NapCat sends some IDs as strings.
+- The typed actions (`GetLoginInfo`, `GetStrangerInfo`, `SendPrivateMsg`, `SendGroupMsg`, `DeleteMsg`, `GetMsg`, `GetGroupInfo`, `GetGroupMemberInfo`) call `details::Transport::Call` and read their result from `data` with `details::FieldReader` (`src/details/field_reader.hpp`), the same reader that event parsing uses.
+  - A missing or null member reads as absent; a member of the wrong type is a problem. The IDs and the main name or content fields are required; the other fields default to empty, 0, or false.
+  - Any problem, including the null `data` of an `async` reply, becomes `ResponseValidation` through `details::invalid_data_error`, with `data` as the error body.
+  - Integers are read with `details::read_integer<T>`, which accepts JSON numbers and decimal strings, because NapCat sends some IDs as strings.
+  - `StrangerInfo`, `MessageInfo`, `GroupInfo`, and `GroupMemberInfo` also keep the whole `data` in `raw`, because NapCat adds many extension fields.
+- NapCat behavior behind these actions was read from NapCat's source at commit `ba0a53dd` (2026-10-27); paths are under `packages/`:
+  - `no_cache` is `std::optional<bool>` and is sent only when set. NapCat's `get_group_member_info` uses `payload.no_cache ?? true` (`napcat-onebot/action/group/GetGroupMemberInfo.ts:56`), so an absent key fetches fresh data, while the standard defaults to false. NapCat's `get_group_info` has no `no_cache`.
+  - `get_msg` formats `message` with the `messagePostFormat` of the HTTP server adapter itself (`napcat-onebot/action/msg/GetMsg.ts:65`), so the `httpServers` entry needs `array` as well.
+  - Message IDs are short IDs in an in-memory table of 5000 entries (`napcat-common/src/message-unique.ts:82`). `get_msg` and `delete_msg` fail (`Action`, retcode 200) for IDs from before NapCat's last restart. `delete_msg` answers with `data: null` (`napcat-onebot/action/msg/DeleteMsg.ts:36`).
+  - `get_group_member_info` leaves out `role` for some members (`GetGroupMemberInfo.ts:56-62`) and sends `level` as a string.
 - Messages use array format in both directions: `Message` is a `std::vector<MessageSegment>`, each segment a `type` plus a `Json::Value data`. CQ-code strings and `auto_escape` are not supported.
+  - `MessageSegment` has the static constructors `Text`, `At`, `AtAll`, `Reply`, `Image`, and `Face`, named after NoneBot2's `MessageSegment`. Their bodies are in `src/types/message.cpp`.
+  - They send IDs as strings, the form of the standard's examples. NapCat parses both strings and numbers (`napcat-onebot/api/msg.ts:640-746`) and emits strings in received segments.
+  - `Sender` lives in `types/message.hpp` because `MessageInfo` reuses it; `types/event.hpp` includes that header.
 - Coroutines take their parameters by value, and every `OneBot` method copies `m_transport` into its frame before the first `co_await`. Keep both rules in new actions.
 
 ### Transport
@@ -79,9 +91,10 @@ The tests use drogon's own framework, `drogon/drogon_test.h`, which is installed
 | Test | What it covers |
 | --- | --- |
 | `test_config` | Calls `initAndStart` on test-built plugins without running the app: required keys, both `_env` keys, `event_path` validation, and the tracked `config.json`. |
-| `test_actions` | Serves a fake NapCat HTTP API. Covers `CallAction`'s body, `Authorization`, and path prefix; `async`; every `ErrorKind`; and the typed actions, including missing `data` fields and passed-through `Action` errors. The 404 and non-JSON cases log drogon JSON `Syntax error` lines; that is expected. |
+| `test_actions` | Serves a fake NapCat HTTP API. Covers `CallAction`'s body, `Authorization`, and path prefix; `async`; every `ErrorKind`; and the typed actions, with `data` shaped like NapCat's source, including missing and mistyped `data` fields, passed-through `Action` errors, and `no_cache` sent only when set. The info fakes echo the request body as `request` in `data`, which tests read back through `raw`. The 404 and non-JSON cases log drogon JSON `Syntax error` lines; that is expected. |
 | `test_events` | Exercises the signed event route. RFC 2202 vectors check the test's own HMAC, and one NapCat body carries a signature computed independently with Python. Also covers uppercase signatures, string IDs, the 401/403/400 rejections with no handler run, all four event types, `message_sent` being dropped, several handlers per event, a throwing handler, and the response not waiting for a slow handler. |
 | `test_events_unsigned` | Loads `config.json` without `secret_env` (`app().loadConfigJson`) and checks that unsigned events are accepted and any `X-Signature` is ignored. |
+| `test_segments` | Runs without the app. Checks every `MessageSegment` constructor, including IDs sent as strings, and a message that mixes built and hand-written segments. |
 
 - `CallActionUnreachableIsConnectionError` (`test_actions`) connects to `127.0.0.1:1` with a 10 s timeout. Windows retries a refused connect for about 2 s before it reports the failure, so a timeout of 2 s or less yields `Timeout` there instead of `Connection`. On Linux the connect fails immediately.
 
