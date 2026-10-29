@@ -456,6 +456,18 @@ namespace drogon_onebot {
         [[nodiscard]] auto GetVersionInfo(
             GetVersionInfoParams params = {}
         ) const -> drogon::Task<Result<VersionInfo>>;
+
+        /**
+         * @brief Call `set_restart`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing once the implementation accepted the restart, or why the action failed.
+         * @note NapCat answers before it restarts its worker process, so its HTTP API and event
+         * posts pause until the new process is up. Running in a single process or as its framework
+         * build, it cannot restart itself and fails with `ErrorKind::Action`.
+         */
+        [[nodiscard]] auto SetRestart(
+            SetRestartParams params = {}
+        ) const -> drogon::Task<Result<void>>;
     };
 
     /**

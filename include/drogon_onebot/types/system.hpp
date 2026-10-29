@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -63,6 +64,14 @@ namespace drogon_onebot {
         std::string app_version;      ///< Version of the implementation, e.g. `1.2.3`.
         std::string protocol_version; ///< OneBot version that it implements; NapCat sends `v11`.
         Json::Value raw;              ///< Whole `data` as received, for the fields that the implementation adds.
+    };
+
+    /**
+     * @brief Arguments of `OneBot::SetRestart()`.
+     */
+    struct SetRestartParams {
+        std::int32_t delay{};   ///< Milliseconds to wait before restarting, 0 by default as in the standard; NapCat ignores it.
+        double timeout{ 30.0 }; ///< Seconds to wait for the response; 0 waits forever.
     };
 
 } // namespace drogon_onebot

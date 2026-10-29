@@ -767,6 +767,8 @@ namespace {
         serve_setter("set_group_special_title", "packetBackend unavailable");
         serve_setter("set_friend_add_request", "No such request");
         serve_setter("set_group_add_request", "No such request");
+        serve_setter("set_restart", "restart is not initialized");
+        serve("/async/set_restart", [](auto const&) { return envelope("async", 1, Json::Value{}, ""); });
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -1859,6 +1861,32 @@ DROGON_TEST(GetVersionInfoRejectsMissingName) {
     REQUIRE(!version.has_value());
     CHECK(version.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
     CHECK(version.error().message.contains("app_name is missing"));
+}
+
+DROGON_TEST(SetRestartSendsDelay) {
+    auto const restarted{ drogon::sync_wait(plugin_bot().SetRestart()) };
+    CHECK(restarted.has_value());
+    auto const restart{ sent_to("set_restart") };
+    CHECK(restart["delay"].isIntegral());
+    CHECK(restart["delay"].asInt() == 0);
+
+    auto const delayed{ drogon::sync_wait(plugin_bot().SetRestart({ .delay = 2000 })) };
+    CHECK(delayed.has_value());
+    auto const delay{ sent_to("set_restart") };
+    CHECK(delay["delay"].isIntegral());
+    CHECK(delay["delay"].asInt() == 2000);
+}
+
+DROGON_TEST(SetRestartAcceptsAsync) {
+    auto const restarted{ drogon::sync_wait(bot_at("/async").SetRestart()) };
+    CHECK(restarted.has_value());
+}
+
+DROGON_TEST(SetRestartPassesActionError) {
+    auto const restarted{ drogon::sync_wait(bot_at("/failing").SetRestart()) };
+    REQUIRE(!restarted.has_value());
+    CHECK(restarted.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(restarted.error().message.contains("restart is not initialized"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

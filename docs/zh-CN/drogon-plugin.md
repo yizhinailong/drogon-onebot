@@ -160,6 +160,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `CanSendRecord(CanSendRecordParams)` | `can_send_record` | `CanSend`（`yes`） |
 | `GetStatus(GetStatusParams)` | `get_status` | `Status`（`online`、`good`） |
 | `GetVersionInfo(GetVersionInfoParams)` | `get_version_info` | `VersionInfo`（`app_name`、`app_version`、`protocol_version`） |
+| `SetRestart(SetRestartParams)` | `set_restart` | 无（`Result<void>`） |
 
 类型化动作读取 `data` 的规则：
 
@@ -200,6 +201,7 @@ NapCat 在这些动作上的行为：
 - NapCat 的 `can_send_image` 和 `can_send_record` 总是回答 `yes`。
 - NapCat 的 `get_status` 总是把 `good` 答作 true，账号离线时也一样，所以要看 `online`。QQ 让账号下线时，NapCat 把 `online` 置为 false。标准规定实现无法查询在线状态时 `online` 为 null，这时读作空的 `std::optional`。
 - NapCat 的 `get_version_info` 回答的 `app_name` 是 `NapCat.Onebot`，`protocol_version` 是 `v11`，`app_version` 是 NapCat 自己的版本。
+- `SetRestart` 总是发送 `delay`，默认 0，与标准一致；NapCat 忽略它。NapCat 向主进程发出重启请求后立即回答 `ok`，而标准规定回答 `async`（两者都算成功）。随后它的工作进程退出，约 3 秒后新进程启动，这期间 HTTP API 和事件上报都会中断。以单进程运行（`NAPCAT_DISABLE_MULTI_PROCESS=1`）或使用 Framework 版本时，NapCat 无法自行重启，以 `Action` 失败。
 
 ### 消息段
 

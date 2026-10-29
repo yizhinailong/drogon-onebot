@@ -157,4 +157,26 @@ namespace drogon_onebot {
         co_return std::move(*info);
     }
 
+    /**
+     * @brief Call `set_restart`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding nothing once the implementation accepted the restart, or why the action failed.
+     * @note NapCat answers before it restarts its worker process, so its HTTP API and event
+     * posts pause until the new process is up. Running in a single process or as its framework
+     * build, it cannot restart itself and fails with `ErrorKind::Action`.
+     */
+    auto OneBot::SetRestart(
+        SetRestartParams params
+    ) const -> drogon::Task<Result<void>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        body["delay"] = params.delay;
+        auto const data{ co_await transport->Call("set_restart", std::move(body), params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        co_return Result<void>{};
+    }
+
 } // namespace drogon_onebot
