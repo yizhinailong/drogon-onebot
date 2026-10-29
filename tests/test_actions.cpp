@@ -32,6 +32,8 @@ namespace {
     constexpr char const* FORWARD_ID{ "7561700000000000001" };     ///< `id` of the forward that the fake `get_forward_msg` knows, a NapCat message ID.
     constexpr char const* COOKIES{ "uin=o10001; skey=@abc12345" }; ///< `cookies` of the fake `get_cookies`.
     constexpr std::int32_t CSRF_TOKEN{ 123456789 };                ///< CSRF token of the fake `get_csrf_token` and `get_credentials`, and `bkn` of `get_cookies`.
+    constexpr char const* RECORD_FILE{ "8C1B4E7B.amr" };           ///< `file` of the voice that the fake `get_record` knows, a NapCat file name.
+    constexpr char const* RECORD_PATH{ "/ptt/8C1B4E7B.amr" };      ///< Path of `RECORD_FILE` on the fake NapCat's host.
     constexpr int FAILED_RETCODE{ 100 };                           ///< `retcode` of the fake actions that fail.
     constexpr double SLOW_DELAY{ 1.0 };                            ///< Seconds that the fake `slow` action takes.
 
@@ -379,17 +381,55 @@ namespace {
     }
 
     /**
+     * @brief Answer as NapCat's payload check does when a required parameter is missing.
+     * @return `failed` with retcode 400.
+     */
+    auto missing_parameter() -> drogon::HttpResponsePtr {
+        return envelope("failed", 400, Json::Value{}, "Schema compilation error: Expected required property");
+    }
+
+    /**
      * @brief Answer a fake cookie action, whose `domain` NapCat's payload check requires.
      * @param req Request to the fake action.
      * @param data Data to answer with when `domain` is a string.
-     * @return `ok` with `data`, or `failed` with retcode 400, as NapCat answers a missing `domain`.
+     * @return `ok` with `data`, or `missing_parameter()` without `domain`.
      */
     auto domain_or_failed(
         drogon::HttpRequestPtr const& req,
         Json::Value const& data
     ) -> drogon::HttpResponsePtr {
         if (!body_of(req)["domain"].isString()) {
-            return envelope("failed", 400, Json::Value{}, "Schema compilation error: Expected required property");
+            return missing_parameter();
+        }
+        return ok(data);
+    }
+
+    /**
+     * @brief Answer the fake `get_record` as NapCat does for `RECORD_FILE`.
+     *
+     * NapCat's payload check requires `out_format`. An empty one answers with the original
+     * file; another converts it to `<path>.<out_format>` and adds the content as `base64`.
+     * @param req Request to the fake action.
+     * @return `ok` with the file, or `failed` for a missing `out_format` or an unknown `file`.
+     */
+    auto converted_record(drogon::HttpRequestPtr const& req) -> drogon::HttpResponsePtr {
+        auto const body{ body_of(req) };
+        if (!body["out_format"].isString()) {
+            return missing_parameter();
+        }
+        if (body["file"].asString() != RECORD_FILE) {
+            return envelope("failed", FAILED_RETCODE, Json::Value{}, "file not found");
+        }
+        Json::Value data{ Json::objectValue };
+        data["file"] = RECORD_PATH;
+        data["url"] = RECORD_PATH;
+        data["file_size"] = "2048";
+        data["file_name"] = RECORD_FILE;
+        auto const format{ body["out_format"].asString() };
+        if (!format.empty()) {
+            data["file"] = std::string{ RECORD_PATH } + "." + format;
+            data["url"] = data["file"];
+            data["base64"] = "SUQzBAAAAAAAIw==";
         }
         return ok(data);
     }
@@ -768,6 +808,12 @@ namespace {
         });
         serve("/failing/get_credentials", [](auto const&) {
             return envelope("failed", FAILED_RETCODE, Json::Value{}, "get credentials failed");
+        });
+        serve("/get_record", converted_record);
+        serve("/bad/get_record", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["url"] = RECORD_PATH;
+            return ok(data);
         });
         drogon::app().registerHandler(
             "/slow",
@@ -1605,6 +1651,34 @@ DROGON_TEST(GetCredentialsPassesActionError) {
     REQUIRE(!credentials.has_value());
     CHECK(credentials.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(credentials.error().message.contains("get credentials failed"));
+}
+
+DROGON_TEST(GetRecordConvertsFormat) {
+    auto const record{ drogon::sync_wait(plugin_bot().GetRecord({ .file = RECORD_FILE, .out_format = "mp3" })) };
+    REQUIRE(record.has_value());
+    CHECK(record->file == std::string{ RECORD_PATH } + ".mp3");
+    CHECK(!record->raw["base64"].asString().empty());
+}
+
+DROGON_TEST(GetRecordAlwaysSendsOutFormat) {
+    auto const record{ drogon::sync_wait(plugin_bot().GetRecord({ .file = RECORD_FILE })) };
+    REQUIRE(record.has_value());
+    CHECK(record->file == RECORD_PATH);
+    CHECK(!record->raw.isMember("base64"));
+}
+
+DROGON_TEST(GetRecordRejectsMissingFile) {
+    auto const record{ drogon::sync_wait(bot_at("/bad").GetRecord({ .file = RECORD_FILE, .out_format = "mp3" })) };
+    REQUIRE(!record.has_value());
+    CHECK(record.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(record.error().message.contains("file is missing"));
+}
+
+DROGON_TEST(GetRecordPassesActionError) {
+    auto const record{ drogon::sync_wait(plugin_bot().GetRecord({ .file = "unknown.amr", .out_format = "mp3" })) };
+    REQUIRE(!record.has_value());
+    CHECK(record.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(record.error().message.contains("file not found"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

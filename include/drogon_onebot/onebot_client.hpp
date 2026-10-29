@@ -18,6 +18,7 @@
 #include "drogon_onebot/types/action.hpp"
 #include "drogon_onebot/types/credential.hpp"
 #include "drogon_onebot/types/event.hpp"
+#include "drogon_onebot/types/file.hpp"
 #include "drogon_onebot/types/group.hpp"
 #include "drogon_onebot/types/message.hpp"
 #include "drogon_onebot/types/request.hpp"
@@ -391,6 +392,19 @@ namespace drogon_onebot {
         [[nodiscard]] auto GetCredentials(
             GetCredentialsParams params = {}
         ) const -> drogon::Task<Result<Credentials>>;
+
+        /**
+         * @brief Call `get_record`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the converted voice file, or why the action failed.
+         * @note NapCat converts the file with ffmpeg next to the original and also answers with
+         * its content as `base64`, which `FileInfo::raw` keeps. It finds `file` among the media
+         * of the messages it has received, in memory for a day, or else by name through QQ's
+         * file assistant, and fails with `ErrorKind::Action` when neither has it.
+         */
+        [[nodiscard]] auto GetRecord(
+            GetRecordParams params
+        ) const -> drogon::Task<Result<FileInfo>>;
     };
 
     /**

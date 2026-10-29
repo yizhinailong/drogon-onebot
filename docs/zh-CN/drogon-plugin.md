@@ -154,14 +154,15 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetCookies(GetCookiesParams)` | `get_cookies` | `Cookies`（`cookies`） |
 | `GetCsrfToken(GetCsrfTokenParams)` | `get_csrf_token` | `CsrfToken`（`token`） |
 | `GetCredentials(GetCredentialsParams)` | `get_credentials` | `Credentials`（`cookies`、`csrf_token`） |
+| `GetRecord(GetRecordParams)` | `get_record` | `FileInfo`（`file`） |
 
 类型化动作读取 `data` 的规则：
 
-- ID 和主要的名称或内容字段是必需的：视动作而定，包括 `user_id`、`group_id`、`nickname`、`group_name`、`message_type`、`message_id`、`message`、`messages`、`cookies`、`token`、`csrf_token` 和 `sender.user_id`。
+- ID 和主要的名称或内容字段是必需的：视动作而定，包括 `user_id`、`group_id`、`nickname`、`group_name`、`message_type`、`message_id`、`message`、`messages`、`cookies`、`token`、`csrf_token`、`file` 和 `sender.user_id`。
 - 必需字段缺失或为 null，或任一字段类型不对（包括 `async` 时的 null `data`）时，返回 `ResponseValidation` 错误，`body` 是该 `data`。列表类动作的错误会指出是哪一项，例如 `data[1].nickname is missing`。
 - 其他字段在实现没有给出时读作空字符串、0 或 false。
 - 整数字段同时接受 JSON 数字和十进制字符串。
-- `StrangerInfo`、`MessageInfo`、`GroupInfo`、`GroupMemberInfo`、`FriendInfo`、`Cookies` 在 `raw` 里保留完整的 `data` 或列表项，没有单独成员的字段从这里读取，例如 NapCat 的 `qid`、`group_remark`、`is_robot`。
+- `StrangerInfo`、`MessageInfo`、`GroupInfo`、`GroupMemberInfo`、`FriendInfo`、`Cookies`、`FileInfo` 在 `raw` 里保留完整的 `data` 或列表项，没有单独成员的字段从这里读取，例如 NapCat 的 `qid`、`group_remark`、`is_robot`。
 
 NapCat 在这些动作上的行为：
 
@@ -187,6 +188,9 @@ NapCat 在这些动作上的行为：
 - `GetCookies` 总是发送 `domain`，默认为空，与标准一致，因为不带它时 NapCat 的 `get_cookies` 以 `Action` 失败，`retcode` 为 400。NapCat 按这个域名登录 QQ 来获取 cookies，所以要传 cookies 所属的域名，例如 `qun.qq.com`。NapCat 还会返回 `bkn`，即这些 cookies 对应的 CSRF Token，以字符串形式放在 `Cookies::raw` 里。
 - NapCat 的 `get_csrf_token` 用账号的 `skey` 计算 token，`skey` 通过登录 QQ 获取，获取不到时以 `Action` 失败。
 - `GetCredentials` 与 `GetCookies` 一样总是发送 `domain`。NapCat 的 `get_credentials` 和 `get_csrf_token` 一样把 token 放在 `token` 里，而不是标准的 `csrf_token`；`GetCredentials` 两种都能读取。NapCat 用 cookies 里的 `skey` 计算 token，没有 `skey` 时发 0。
+- `GetRecord` 接受收到的 `record` 消息段的 `file`，并总是发送 `out_format`，因为不带它时 NapCat 的 `get_record` 以 `Action` 失败，`retcode` 为 400；`out_format` 为空时 NapCat 不转换格式。NapCat 用 ffmpeg 在原文件旁边转换语音，还会把转换后的内容以 `base64` 放在 `FileInfo::raw` 里。
+- `FileInfo::file` 是 NapCat 主机上的路径。NapCat 跑在容器里时，改从 `base64` 读取内容。
+- NapCat 在它收到的消息的媒体里查找 `file`，这些记录在内存里保留到最后一次使用后一天；找不到时按这个名字在 QQ 的文件助手里搜索，仍找不到时以 `Action` 失败。
 
 ### 消息段
 
