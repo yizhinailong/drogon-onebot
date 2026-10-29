@@ -16,6 +16,7 @@
 #include "drogon_onebot/types/account.hpp"
 #include "drogon_onebot/types/action.hpp"
 #include "drogon_onebot/types/event.hpp"
+#include "drogon_onebot/types/group.hpp"
 #include "drogon_onebot/types/message.hpp"
 
 namespace drogon_onebot {
@@ -65,11 +66,9 @@ namespace drogon_onebot {
      * Methods mirror OneBot v11 action names: `SendPrivateMsg()` calls `send_private_msg`.
      *
      * @code
-     * Json::Value text{ Json::objectValue };
-     * text["text"] = "Hello!";
      * auto const sent{ co_await bot.SendGroupMsg({
      *     .group_id = 123456,
-     *     .message = { { .type = "text", .data = text } },
+     *     .message = { drogon_onebot::MessageSegment::Text("Hello!") },
      * }) };
      * if (sent) {
      *     std::println("message_id: {}", sent->message_id);
@@ -111,6 +110,15 @@ namespace drogon_onebot {
         ) const -> drogon::Task<Result<LoginInfo>>;
 
         /**
+         * @brief Call `get_stranger_info`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the account's public profile, or why the action failed.
+         */
+        [[nodiscard]] auto GetStrangerInfo(
+            GetStrangerInfoParams params
+        ) const -> drogon::Task<Result<StrangerInfo>>;
+
+        /**
          * @brief Call `send_private_msg`.
          * @param params Request fields, taken by value so they outlive the caller's frame.
          * @return Task yielding the sent message's ID, or why the action failed.
@@ -127,6 +135,46 @@ namespace drogon_onebot {
         [[nodiscard]] auto SendGroupMsg(
             SendGroupMsgParams params
         ) const -> drogon::Task<Result<SentMessage>>;
+
+        /**
+         * @brief Call `delete_msg`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding nothing once the message is recalled, or why the action failed.
+         * @note NapCat remembers only the message IDs it has seen since it started (5000 by default);
+         * an older ID fails with `ErrorKind::Action`.
+         */
+        [[nodiscard]] auto DeleteMsg(
+            DeleteMsgParams params
+        ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call `get_msg`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the message, or why the action failed.
+         * @note NapCat remembers only the message IDs it has seen since it started (5000 by default);
+         * an older ID fails with `ErrorKind::Action`.
+         */
+        [[nodiscard]] auto GetMsg(
+            GetMsgParams params
+        ) const -> drogon::Task<Result<MessageInfo>>;
+
+        /**
+         * @brief Call `get_group_info`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the group, or why the action failed.
+         */
+        [[nodiscard]] auto GetGroupInfo(
+            GetGroupInfoParams params
+        ) const -> drogon::Task<Result<GroupInfo>>;
+
+        /**
+         * @brief Call `get_group_member_info`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the group member, or why the action failed.
+         */
+        [[nodiscard]] auto GetGroupMemberInfo(
+            GetGroupMemberInfoParams params
+        ) const -> drogon::Task<Result<GroupMemberInfo>>;
     };
 
     /**

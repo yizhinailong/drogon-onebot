@@ -2,6 +2,10 @@
  * @file account.cpp
  * @brief Implement the account actions of `OneBot`.
  */
+#include <cstdint>
+#include <utility>
+
+#include "details/field_reader.hpp"
 #include "details/json.hpp"
 #include "details/transport.hpp"
 #include "drogon_onebot/onebot_client.hpp"
@@ -22,18 +26,48 @@ namespace drogon_onebot {
         if (!data) {
             co_return std::unexpected{ data.error() };
         }
-        auto const user_id{ details::read_integer<std::int64_t>(details::member(*data, "user_id")) };
-        auto const& nickname{ details::member(*data, "nickname") };
-        if (!user_id) {
-            co_return std::unexpected{ details::invalid_data_error("get_login_info", "user_id", *data) };
-        }
-        if (!nickname.isString()) {
-            co_return std::unexpected{ details::invalid_data_error("get_login_info", "nickname", *data) };
-        }
-        co_return LoginInfo{
-            .user_id = *user_id,
-            .nickname = nickname.asString(),
+        details::FieldReader fields{ *data };
+        LoginInfo info{
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .nickname = fields.RequiredString("nickname"),
         };
+        if (!fields.Problem().empty()) {
+            co_return std::unexpected{ details::invalid_data_error("get_login_info", fields.Problem(), *data) };
+        }
+        co_return info;
+    }
+
+    /**
+     * @brief Call `get_stranger_info`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the account's public profile, or why the action failed.
+     */
+    auto OneBot::GetStrangerInfo(
+        GetStrangerInfoParams params
+    ) const -> drogon::Task<Result<StrangerInfo>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        body["user_id"] = params.user_id;
+        if (params.no_cache) {
+            body["no_cache"] = *params.no_cache;
+        }
+        auto const data{ co_await transport->Call("get_stranger_info", std::move(body), params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        details::FieldReader fields{ *data };
+        StrangerInfo info{
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .nickname = fields.RequiredString("nickname"),
+            .sex = fields.String("sex"),
+            .age = fields.Integer<std::int32_t>("age").value_or(0),
+            .raw = *data,
+        };
+        if (!fields.Problem().empty()) {
+            co_return std::unexpected{ details::invalid_data_error("get_stranger_info", fields.Problem(), *data) };
+        }
+        co_return info;
     }
 
 } // namespace drogon_onebot

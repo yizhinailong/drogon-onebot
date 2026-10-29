@@ -15,16 +15,6 @@
 namespace drogon_onebot {
 
     /**
-     * @brief Sender of a message event, from its `sender` object.
-     */
-    struct Sender {
-        std::int64_t user_id{}; ///< QQ number of the sender.
-        std::string nickname;   ///< Nickname of the sender.
-        std::string card;       ///< Group card in group messages; empty when unset or in private messages.
-        std::string role;       ///< `owner`, `admin`, or `member` in group messages; empty in private messages.
-    };
-
-    /**
      * @brief Event with `post_type` `message`: a private or group message the bot received.
      */
     struct MessageEvent {

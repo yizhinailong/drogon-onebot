@@ -96,7 +96,9 @@ NapCat 的 OneBot 配置（`onebot11_<QQ号>.json`）需要两个网络端点：
 - `httpServers[].token` 是 access token：NapCat 校验 `Authorization: Bearer` 头，不符时返回 403。
 - `httpClients[].token` 是上报签名的密钥：NapCat 用它对请求体计算 HMAC-SHA1，并放进 `x-signature` 头。
 - 两个 token 可以不同，分别对应 `access_token_env` 和 `secret_env`。
-- `messagePostFormat` 必须是 `array`。`string` 格式的 `message` 是 CQ 码字符串，事件路由会以 400 拒收。
+- 两个端点的 `messagePostFormat` 都设为 `array`：
+  - HTTP 客户端的设置作用于上报的事件。设为 `string` 时 `message` 是 CQ 码字符串，事件路由会以 400 拒收。
+  - HTTP 服务器的设置作用于 `get_msg` 返回的 `message`。设为 `string` 时 `GetMsg` 以 `ResponseValidation` 失败。
 
 ## 生命周期
 
@@ -125,10 +127,59 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 |---|---|---|
 | `CallAction(CallActionParams)` | 任意动作，含实现扩展 | 响应的 `data`；`async` 时为 null |
 | `GetLoginInfo(GetLoginInfoParams)` | `get_login_info` | `LoginInfo`（`user_id`、`nickname`） |
+| `GetStrangerInfo(GetStrangerInfoParams)` | `get_stranger_info` | `StrangerInfo`（`user_id`、`nickname`、`sex`、`age`） |
 | `SendPrivateMsg(SendPrivateMsgParams)` | `send_private_msg` | `SentMessage`（`message_id`） |
 | `SendGroupMsg(SendGroupMsgParams)` | `send_group_msg` | `SentMessage`（`message_id`） |
+| `DeleteMsg(DeleteMsgParams)` | `delete_msg` | 无（`Result<void>`） |
+| `GetMsg(GetMsgParams)` | `get_msg` | `MessageInfo`（`time`、`message_type`、`message_id`、`real_id`、`group_id`、`sender`、`message`、`raw_message`） |
+| `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo`（`group_id`、`group_name`、`member_count`、`max_member_count`） |
+| `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo`（`card`、`role`、`level`、`title` 及标准里的其他字段） |
 
-类型化动作的 `data` 缺少所需字段，或字段类型不对（包括 `async` 时的 null）时，返回 `ResponseValidation` 错误，`body` 是该 `data`。整数字段同时接受 JSON 数字和十进制字符串。
+类型化动作读取 `data` 的规则：
+
+- ID 和主要的名称或内容字段是必需的：视动作而定，包括 `user_id`、`group_id`、`nickname`、`group_name`、`message_type`、`message_id`、`message` 和 `sender.user_id`。
+- 必需字段缺失或为 null，或任一字段类型不对（包括 `async` 时的 null `data`）时，返回 `ResponseValidation` 错误，`body` 是该 `data`。
+- 其他字段在实现没有给出时读作空字符串、0 或 false。
+- 整数字段同时接受 JSON 数字和十进制字符串。
+- `StrangerInfo`、`MessageInfo`、`GroupInfo`、`GroupMemberInfo` 在 `raw` 里保留完整的 `data`，没有单独成员的字段从这里读取，例如 NapCat 的 `qid`、`group_remark`、`is_robot`。
+
+NapCat 在这些动作上的行为：
+
+- `no_cache` 是 `std::optional<bool>`，只在设置了时才发送。不带 `no_cache` 时，NapCat 的 `get_group_member_info` 会跳过缓存、重新获取，尽管标准的默认值是 false。NapCat 的 `get_group_info` 忽略 `no_cache`。
+- NapCat 只在内存里保存消息 ID，默认 5000 条。对 NapCat 上次重启之前的 ID，`GetMsg` 和 `DeleteMsg` 以 `Action` 失败。
+- `GroupMemberInfo::nickname` 是 QQ 昵称，群名片是 `card`。NapCat 对部分成员不给 `role`，所以它可能为空。
+
+### 消息段
+
+`MessageSegment` 为常用的消息段类型提供静态函数，命名沿用 NoneBot2 和 aiocqhttp 的 `MessageSegment`：
+
+| 函数 | 消息段 |
+|---|---|
+| `Text(text)` | `{"type": "text", "data": {"text": text}}` |
+| `At(user_id)`、`AtAll()` | `{"type": "at", "data": {"qq": "<user_id>"}}`，或 `"qq": "all"` |
+| `Reply(message_id)` | `{"type": "reply", "data": {"id": "<message_id>"}}` |
+| `Image(file)` | `{"type": "image", "data": {"file": file}}` |
+| `Face(id)` | `{"type": "face", "data": {"id": "<id>"}}` |
+
+```cpp
+auto const sent{ co_await bot.SendGroupMsg({
+    .group_id = *event.group_id,
+    .message = {
+        drogon_onebot::MessageSegment::Reply(event.message_id),
+        drogon_onebot::MessageSegment::At(event.user_id),
+        drogon_onebot::MessageSegment::Text(" 收到"),
+    },
+}) };
+if (!sent) {
+    LOG_ERROR << "send_group_msg failed: " << sent.error().message;
+}
+```
+
+- ID 以字符串发送，与标准示例的写法一致。NapCat 字符串和数字都接受。
+- `Image` 接受 `http://` 或 `https://` URL、运行 OneBot 实现的主机上的 `file://` URI 或路径，或 `base64://` 加图片数据。NapCat 跑在 Docker 里时，路径指的是 NapCat 容器内的文件系统。
+- NapCat 会静默丢弃某些消息段，其余照常发送：私聊里的 `at`，以及 ID 不认识的 `reply` 或 `face`。
+- 其他消息段类型或额外字段，直接构造或修改 `type` 和 `data`，例如 `image.data["summary"] = "[图片]";`。
+- 收到的消息段里 ID 同样是字符串。收到的 `reply` 消息段的 `id` 是十进制字符串，传给 `GetMsg` 前要转成整数。
 
 ## 接收事件
 
@@ -174,7 +225,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 | `Connection` | 没有收到响应：DNS、TLS、连接被拒等 | 0 | 0 | 空 |
 | `Timeout` | 在 `timeout` 秒内没有收到响应 | 0 | 0 | 空 |
 | `Status` | 非 2xx：未带 token（401）、token 不符（NapCat 为 403）、动作不存在（404）等 | HTTP 状态码 | 0 | 原始响应体 |
-| `ResponseValidation` | 2xx 响应不是 JSON、没有 `status` 字符串或 `status` 未知；或类型化动作的 `data` 缺字段 | 0 | 0 | 响应内容，或 `data` |
+| `ResponseValidation` | 2xx 响应不是 JSON、没有 `status` 字符串或 `status` 未知；或类型化动作的 `data` 缺必需字段或字段类型不对 | 0 | 0 | 响应内容，或 `data` |
 | `Action` | 响应的 `status` 为 `failed` | 0 | 响应的 `retcode` | 响应内容 |
 
 - `status` 为 `ok` 或 `async` 都算成功；`async` 时 `data` 为 null，执行结果无法获知。
@@ -192,7 +243,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 
 - 只实现了 HTTP API 和 HTTP POST 上报，没有正向 WebSocket 和反向 WebSocket。
 - 不支持上报响应里的快速操作。
-- 类型化动作只有三个，其余动作先用 `CallAction`。
+- 类型化动作有八个，见“调用动作”一节的表格，其余动作先用 `CallAction`。
 - 通知、请求、元事件只有公共字段和子类型是类型化的，其余字段从 `raw` 读取。
 
 ## 测试
@@ -208,6 +259,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 | 程序 | 覆盖内容 |
 |---|---|
 | `test_config` | 不启动 app，直接调用 `initAndStart`：必填项、两个 `_env` 的读取与报错、`event_path` 校验，以及仓库里的 config.json 能通过校验。 |
-| `test_actions` | 假的 NapCat HTTP API。`CallAction` 的请求体、`Authorization`、`base_url` 路径前缀；`async`；全部五种 `ErrorKind`（`failed`、只有 `wording`、404、403、非 JSON、无 `status`、未知 `status`、超时、连接失败）；三个类型化动作的成功、`data` 缺字段和 `Action` 错误。 |
+| `test_actions` | 假的 NapCat HTTP API。`CallAction` 的请求体、`Authorization`、`base_url` 路径前缀；`async`；全部五种 `ErrorKind`（`failed`、只有 `wording`、404、403、非 JSON、无 `status`、未知 `status`、超时、连接失败）；八个类型化动作在 NapCat 形状的 `data` 下成功、`data` 缺字段或字段类型不对、`Action` 错误，以及 `no_cache` 只在设置时发送。 |
 | `test_events` | 带签名的事件路由。RFC 2202 向量校验测试自带的 HMAC；用 Python 独立算出的 NapCat 签名；大写签名；字符串 ID 的群消息；401、403、400 各种拒收且回调不运行；四种事件的分发；丢弃 `message_sent`；多个回调都运行；回调抛异常后服务继续；应答不等慢回调。 |
 | `test_events_unsigned` | 去掉 `secret_env` 的事件路由：接受无签名事件，忽略任意 `X-Signature`。 |
+| `test_segments` | 不启动 app：每个 `MessageSegment` 函数构造的消息段，包括以字符串发送的 ID，以及混合构造和手写消息段的消息。 |

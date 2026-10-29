@@ -96,7 +96,9 @@ NapCat's OneBot configuration (`onebot11_<QQ number>.json`) needs two network en
 - `httpServers[].token` is the access token. NapCat checks the `Authorization: Bearer` header and answers 403 when it does not match.
 - `httpClients[].token` is the secret that signs reports. NapCat computes the HMAC-SHA1 of the request body with it and puts the result in the `x-signature` header.
 - The two tokens may differ. They correspond to `access_token_env` and `secret_env` respectively.
-- `messagePostFormat` must be `array`. With `string`, `message` is a CQ-code string, and the event route rejects the event with 400.
+- Set `messagePostFormat` to `array` on both endpoints:
+  - The HTTP client's setting applies to reported events. With `string`, `message` is a CQ-code string, and the event route rejects the event with 400.
+  - The HTTP server's setting applies to the `message` that `get_msg` returns. With `string`, `GetMsg` fails with `ResponseValidation`.
 
 ## Lifecycle
 
@@ -125,10 +127,59 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 |---|---|---|
 | `CallAction(CallActionParams)` | Any action, including implementation extensions | The response's `data`; null for `async` |
 | `GetLoginInfo(GetLoginInfoParams)` | `get_login_info` | `LoginInfo` (`user_id`, `nickname`) |
+| `GetStrangerInfo(GetStrangerInfoParams)` | `get_stranger_info` | `StrangerInfo` (`user_id`, `nickname`, `sex`, `age`) |
 | `SendPrivateMsg(SendPrivateMsgParams)` | `send_private_msg` | `SentMessage` (`message_id`) |
 | `SendGroupMsg(SendGroupMsgParams)` | `send_group_msg` | `SentMessage` (`message_id`) |
+| `DeleteMsg(DeleteMsgParams)` | `delete_msg` | Nothing (`Result<void>`) |
+| `GetMsg(GetMsgParams)` | `get_msg` | `MessageInfo` (`time`, `message_type`, `message_id`, `real_id`, `group_id`, `sender`, `message`, `raw_message`) |
+| `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo` (`group_id`, `group_name`, `member_count`, `max_member_count`) |
+| `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo` (`card`, `role`, `level`, `title`, and the other fields of the standard) |
 
-When the `data` of a typed action lacks a required field or has a field of the wrong type (including the null `data` of `async`), the action returns a `ResponseValidation` error whose `body` is that `data`. Integer fields accept both JSON numbers and decimal strings.
+How typed actions read `data`:
+
+- The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, and `sender.user_id`, depending on the action.
+- When a required field is missing or null, or any field has the wrong type (including the null `data` of `async`), the action returns a `ResponseValidation` error whose `body` is that `data`.
+- Other fields read as empty, 0, or false when the implementation leaves them out.
+- Integer fields accept both JSON numbers and decimal strings.
+- `StrangerInfo`, `MessageInfo`, `GroupInfo`, and `GroupMemberInfo` keep the whole `data` in `raw`, for the fields that have no member of their own, such as NapCat's `qid`, `group_remark`, and `is_robot`.
+
+NapCat's behavior with these actions:
+
+- `no_cache` is a `std::optional<bool>` and is sent only when set. When it is absent, NapCat's `get_group_member_info` skips its cache and fetches fresh data, although the standard's default is false. NapCat's `get_group_info` ignores `no_cache`.
+- NapCat keeps message IDs in memory only, 5000 of them by default. `GetMsg` and `DeleteMsg` fail with `Action` for an ID from before NapCat's last restart.
+- `GroupMemberInfo::nickname` is the QQ nickname; the group card is `card`. NapCat leaves out `role` for some members, so it can be empty.
+
+### Message segments
+
+`MessageSegment` has static functions for the common segment types, named after `MessageSegment` in NoneBot2 and aiocqhttp:
+
+| Function | Segment |
+|---|---|
+| `Text(text)` | `{"type": "text", "data": {"text": text}}` |
+| `At(user_id)`, `AtAll()` | `{"type": "at", "data": {"qq": "<user_id>"}}`, or `"qq": "all"` |
+| `Reply(message_id)` | `{"type": "reply", "data": {"id": "<message_id>"}}` |
+| `Image(file)` | `{"type": "image", "data": {"file": file}}` |
+| `Face(id)` | `{"type": "face", "data": {"id": "<id>"}}` |
+
+```cpp
+auto const sent{ co_await bot.SendGroupMsg({
+    .group_id = *event.group_id,
+    .message = {
+        drogon_onebot::MessageSegment::Reply(event.message_id),
+        drogon_onebot::MessageSegment::At(event.user_id),
+        drogon_onebot::MessageSegment::Text(" got it"),
+    },
+}) };
+if (!sent) {
+    LOG_ERROR << "send_group_msg failed: " << sent.error().message;
+}
+```
+
+- IDs are sent as strings, the form of the standard's examples. NapCat accepts both strings and numbers.
+- `Image` takes an `http://` or `https://` URL, a `file://` URI or a path on the host that runs the OneBot implementation, or `base64://` followed by the image data. When NapCat runs in Docker, a path refers to the NapCat container's file system.
+- NapCat silently drops some segments and still sends the rest: `at` in a private message, and `reply` or `face` with an ID it does not know.
+- For other segment types or extra fields, build or change `type` and `data` directly, for example `image.data["summary"] = "[picture]";`.
+- Received segments carry their IDs as strings too. The `id` of a received `reply` segment is a decimal string; convert it to an integer for `GetMsg`.
 
 ## Receiving events
 
@@ -174,7 +225,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 | `Connection` | No response arrived: DNS, TLS, connection refused, and so on | 0 | 0 | Empty |
 | `Timeout` | No response within `timeout` seconds | 0 | 0 | Empty |
 | `Status` | Non-2xx: no token (401), wrong token (403 from NapCat), unknown action (404), and so on | HTTP status code | 0 | Raw response body |
-| `ResponseValidation` | A 2xx response that is not JSON, has no `status` string, or has an unknown `status`; or a typed action's `data` lacks a field | 0 | 0 | Response content, or `data` |
+| `ResponseValidation` | A 2xx response that is not JSON, has no `status` string, or has an unknown `status`; or a typed action's `data` lacks a required field or has a field of the wrong type | 0 | 0 | Response content, or `data` |
 | `Action` | The response's `status` is `failed` | 0 | The response's `retcode` | Response content |
 
 - A `status` of `ok` or `async` counts as success. With `async`, `data` is null, and the result of the action cannot be known.
@@ -192,7 +243,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 
 - Only the HTTP API and HTTP POST reporting are implemented. There is no forward or reverse WebSocket.
 - Quick operations in the report response are not supported.
-- There are only three typed actions. Use `CallAction` for the other actions for now.
+- There are eight typed actions, listed in the table under "Calling actions". Use `CallAction` for the other actions for now.
 - For notice, request, and meta events, only the common fields and the subtypes are typed. Read the other fields from `raw`.
 
 ## Tests
@@ -208,6 +259,7 @@ All tests run offline. The tests that need a server use the same app as a stand-
 | Program | What it covers |
 |---|---|
 | `test_config` | Calls `initAndStart` directly without starting the app: the required key, reading both `_env` keys and their errors, `event_path` validation, and that the config.json in the repository passes validation. |
-| `test_actions` | A fake NapCat HTTP API. `CallAction`'s request body, `Authorization`, and `base_url` path prefix; `async`; all five `ErrorKind`s (`failed`, `wording` only, 404, 403, non-JSON, no `status`, unknown `status`, timeout, connection failure); and success, missing `data` fields, and `Action` errors for the three typed actions. |
+| `test_actions` | A fake NapCat HTTP API. `CallAction`'s request body, `Authorization`, and `base_url` path prefix; `async`; all five `ErrorKind`s (`failed`, `wording` only, 404, 403, non-JSON, no `status`, unknown `status`, timeout, connection failure); and for the eight typed actions, success with `data` shaped like NapCat's, missing or mistyped `data` fields, `Action` errors, and `no_cache` being sent only when set. |
 | `test_events` | The signed event route. RFC 2202 vectors check the test's own HMAC; a NapCat signature computed independently with Python; uppercase signatures; a group message with string IDs; the 401, 403, and 400 rejections, with no callback run; dispatch of all four event types; `message_sent` dropped; several callbacks all run; the service continuing after a callback throws; the response not waiting for a slow callback. |
 | `test_events_unsigned` | The event route without `secret_env`: unsigned events are accepted, and any `X-Signature` is ignored. |
+| `test_segments` | Without starting the app: the segments that each `MessageSegment` function builds, including IDs sent as strings, and a message that mixes built and hand-written segments. |

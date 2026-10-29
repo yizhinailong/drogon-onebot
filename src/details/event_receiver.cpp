@@ -7,14 +7,12 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <expected>
 #include <format>
 #include <iterator>
-#include <optional>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -23,6 +21,7 @@
 #include <trantor/utils/Logger.h>
 #include <trantor/utils/Utilities.h>
 
+#include "details/field_reader.hpp"
 #include "details/json.hpp"
 
 namespace {
@@ -128,121 +127,7 @@ namespace {
         return response;
     }
 
-    /**
-     * @brief Read typed members of one JSON object, keeping the first problem found.
-     *
-     * A member that is missing or null reads as absent; a member of the wrong type is a problem.
-     */
-    class FieldReader {
-    private:
-        Json::Value const& m_object; ///< Object to read; outlives the reader.
-        std::string m_problem;       ///< First problem found; empty while every read succeeded.
-
-    public:
-        /**
-         * @brief Read members of `object`.
-         * @param object Object to read; a non-object reads as an object without members.
-         */
-        explicit FieldReader(Json::Value const& object)
-            : m_object{ object } {}
-
-        /**
-         * @brief Read an optional integer member.
-         * @tparam T Integer type to return.
-         * @param key Member name.
-         * @return The integer, or empty when the member is absent or invalid.
-         */
-        template <std::integral T>
-        [[nodiscard]] auto Integer(char const* key) -> std::optional<T> {
-            auto const& value{ drogon_onebot::details::member(m_object, key) };
-            if (value.isNull()) {
-                return std::nullopt;
-            }
-            auto const number{ drogon_onebot::details::read_integer<T>(value) };
-            if (!number) {
-                fail(std::format("{} is not an integer in range", key));
-            }
-            return number;
-        }
-
-        /**
-         * @brief Read a required integer member.
-         * @tparam T Integer type to return.
-         * @param key Member name.
-         * @return The integer, or 0 after recording a problem.
-         */
-        template <std::integral T>
-        [[nodiscard]] auto RequiredInteger(char const* key) -> T {
-            auto const number{ Integer<T>(key) };
-            if (!number) {
-                fail(std::format("{} is missing", key));
-            }
-            return number.value_or(T{});
-        }
-
-        /**
-         * @brief Read an optional string member.
-         * @param key Member name.
-         * @return The string, or empty when the member is absent or invalid.
-         */
-        [[nodiscard]] auto String(char const* key) -> std::string {
-            auto const& value{ drogon_onebot::details::member(m_object, key) };
-            if (value.isNull()) {
-                return {};
-            }
-            if (!value.isString()) {
-                fail(std::format("{} is not a string", key));
-                return {};
-            }
-            return value.asString();
-        }
-
-        /**
-         * @brief Read a required string member.
-         * @param key Member name.
-         * @return The string, or empty after recording a problem.
-         */
-        [[nodiscard]] auto RequiredString(char const* key) -> std::string {
-            if (drogon_onebot::details::member(m_object, key).isNull()) {
-                fail(std::format("{} is missing", key));
-                return {};
-            }
-            return String(key);
-        }
-
-        /**
-         * @brief Read a required message member in array format.
-         * @param key Member name.
-         * @return The segments, or none after recording a problem.
-         */
-        [[nodiscard]] auto Segments(char const* key) -> drogon_onebot::Message {
-            auto message{ drogon_onebot::details::parse_message(drogon_onebot::details::member(m_object, key)) };
-            if (!message) {
-                fail(std::format("{} is not an array of message segments (set messagePostFormat to array in NapCat)", key));
-                return {};
-            }
-            return std::move(*message);
-        }
-
-        /**
-         * @brief Return the first problem found.
-         * @return Description of the problem; empty while every read succeeded.
-         */
-        [[nodiscard]] auto Problem() const noexcept -> std::string const& {
-            return m_problem;
-        }
-
-    private:
-        /**
-         * @brief Record a problem unless an earlier one is already recorded.
-         * @param problem Description of the problem.
-         */
-        auto fail(std::string problem) -> void {
-            if (m_problem.empty()) {
-                m_problem = std::move(problem);
-            }
-        }
-    };
+    using drogon_onebot::details::FieldReader;
 
     /**
      * @brief Return a parsed event, or the first problem its reader found.

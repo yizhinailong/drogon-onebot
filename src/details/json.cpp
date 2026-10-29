@@ -91,18 +91,18 @@ namespace drogon_onebot::details {
     /**
      * @brief Describe a successful action whose `data` lacks a field of the expected type.
      * @param action Action name, for the message.
-     * @param field Missing or malformed field of `data`.
+     * @param problem What is wrong with `data`, e.g. `user_id is missing`.
      * @param data The envelope's `data`.
      * @return A `ResponseValidation` error that carries `data` as its body.
      */
     auto invalid_data_error(
         std::string_view action,
-        std::string_view field,
+        std::string_view problem,
         Json::Value const& data
     ) -> Error {
         return Error{
             .kind = ErrorKind::ResponseValidation,
-            .message = std::format("{}: response data has no valid {}", action, field),
+            .message = std::format("{}: invalid response data: {}", action, problem),
             .body = data.toStyledString(),
         };
     }

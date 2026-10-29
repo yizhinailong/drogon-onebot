@@ -3,7 +3,7 @@
  * @brief Call actions on a fake OneBot HTTP API that the same app serves, NapCat-style.
  *
  * Covers `CallAction` (request shape, `Authorization`, the `base_url` path prefix, and
- * every `ErrorKind`) and the typed actions. Runs offline.
+ * every `ErrorKind`) and the typed actions, with the `data` shapes of NapCat's source. Runs offline.
  */
 #include <cstdint>
 #include <functional>
@@ -20,14 +20,16 @@
 
 namespace {
 
-    constexpr std::int64_t SELF_ID{ 10001 };         ///< `user_id` of the fake `get_login_info`.
-    constexpr std::int64_t PREFIX_SELF_ID{ 10002 };  ///< `user_id` of the fake `get_login_info` under `/prefix`.
-    constexpr std::int64_t TARGET_USER{ 20002 };     ///< `user_id` that the fake `send_private_msg` accepts.
-    constexpr std::int64_t TARGET_GROUP{ 30003 };    ///< `group_id` that the fake `send_group_msg` accepts.
-    constexpr std::int32_t PRIVATE_MESSAGE_ID{ 42 }; ///< `message_id` of the fake `send_private_msg`.
-    constexpr std::int32_t GROUP_MESSAGE_ID{ 43 };   ///< `message_id` of the fake `send_group_msg`.
-    constexpr int FAILED_RETCODE{ 100 };             ///< `retcode` of the fake `delete_msg`.
-    constexpr double SLOW_DELAY{ 1.0 };              ///< Seconds that the fake `slow` action takes.
+    constexpr std::int64_t SELF_ID{ 10001 };           ///< `user_id` of the fake `get_login_info`.
+    constexpr std::int64_t PREFIX_SELF_ID{ 10002 };    ///< `user_id` of the fake `get_login_info` under `/prefix`.
+    constexpr std::int64_t TARGET_USER{ 20002 };       ///< `user_id` that the fake `send_private_msg` accepts.
+    constexpr std::int64_t TARGET_GROUP{ 30003 };      ///< `group_id` that the fake `send_group_msg` accepts.
+    constexpr std::int32_t PRIVATE_MESSAGE_ID{ 42 };   ///< `message_id` of the fake `send_private_msg`.
+    constexpr std::int32_t GROUP_MESSAGE_ID{ 43 };     ///< `message_id` of the fake `send_group_msg`.
+    constexpr std::int32_t STORED_MESSAGE_ID{ 44 };    ///< `message_id` that the fake `delete_msg` and `get_msg` know.
+    constexpr std::int64_t MESSAGE_TIME{ 1761700000 }; ///< `time` of the message that the fake `get_msg` returns.
+    constexpr int FAILED_RETCODE{ 100 };               ///< `retcode` of the fake actions that fail.
+    constexpr double SLOW_DELAY{ 1.0 };                ///< Seconds that the fake `slow` action takes.
 
     /**
      * @brief Build a OneBot v11 response envelope with NapCat's extra `message` and `wording`.
@@ -89,9 +91,162 @@ namespace {
      * @return `[{ "type": "text", "data": { "text": "hi" } }]` as a `Message`.
      */
     auto hi_message() -> drogon_onebot::Message {
+        return { drogon_onebot::MessageSegment::Text("hi") };
+    }
+
+    /**
+     * @brief Return the JSON body of a request to a fake action.
+     * @param req Request to the fake action.
+     * @return The body, or null when it is not JSON.
+     */
+    auto body_of(drogon::HttpRequestPtr const& req) -> Json::Value {
+        return req->getJsonObject() != nullptr ? *req->getJsonObject() : Json::Value{};
+    }
+
+    /**
+     * @brief Build NapCat's `get_msg` data for a group message, extensions included.
+     * @return Data of a message from `TARGET_USER` in `TARGET_GROUP` that mentions `SELF_ID`.
+     */
+    auto stored_group_message() -> Json::Value {
+        Json::Value sender{ Json::objectValue };
+        sender["user_id"] = TARGET_USER;
+        sender["nickname"] = "alice";
+        sender["card"] = "Alice";
+        sender["role"] = "admin";
+
+        Json::Value at{ Json::objectValue };
+        at["type"] = "at";
+        at["data"]["qq"] = std::to_string(SELF_ID);
         Json::Value text{ Json::objectValue };
-        text["text"] = "hi";
-        return { { .type = "text", .data = text } };
+        text["type"] = "text";
+        text["data"]["text"] = " hi";
+        Json::Value message{ Json::arrayValue };
+        message.append(at);
+        message.append(text);
+
+        Json::Value data{ Json::objectValue };
+        data["self_id"] = SELF_ID;
+        data["user_id"] = TARGET_USER;
+        data["time"] = MESSAGE_TIME;
+        data["message_id"] = STORED_MESSAGE_ID;
+        data["message_seq"] = STORED_MESSAGE_ID;
+        data["real_id"] = STORED_MESSAGE_ID;
+        data["real_seq"] = "8848";
+        data["message_type"] = "group";
+        data["sub_type"] = "normal";
+        data["sender"] = sender;
+        data["raw_message"] = "[CQ:at,qq=10001] hi";
+        data["font"] = 14;
+        data["message"] = message;
+        data["message_format"] = "array";
+        data["post_type"] = "message";
+        data["group_id"] = TARGET_GROUP;
+        data["group_name"] = "test group";
+        data["emoji_likes_list"] = Json::Value{ Json::arrayValue };
+        return data;
+    }
+
+    /**
+     * @brief Build NapCat's `get_msg` data for a private message.
+     * @return `stored_group_message()` without the group fields and the sender's `role`.
+     */
+    auto stored_private_message() -> Json::Value {
+        auto data{ stored_group_message() };
+        data["message_type"] = "private";
+        data["sub_type"] = "friend";
+        data.removeMember("group_id");
+        data.removeMember("group_name");
+        data["sender"].removeMember("role");
+        return data;
+    }
+
+    /**
+     * @brief Build NapCat's `get_group_info` data, plus the request body under `request`.
+     * @param request Body of the request, echoed so tests can check what was sent.
+     * @return Data of `TARGET_GROUP`.
+     */
+    auto group_info(Json::Value const& request) -> Json::Value {
+        Json::Value data{ Json::objectValue };
+        data["group_all_shut"] = 0;
+        data["group_remark"] = "";
+        data["group_id"] = TARGET_GROUP;
+        data["group_name"] = "test group";
+        data["member_count"] = 42;
+        data["max_member_count"] = 500;
+        data["request"] = request;
+        return data;
+    }
+
+    /**
+     * @brief Build NapCat's `get_group_member_info` data, plus the request body under `request`.
+     * @param request Body of the request, echoed so tests can check what was sent.
+     * @return Data of `TARGET_USER` in `TARGET_GROUP`.
+     */
+    auto group_member_info(Json::Value const& request) -> Json::Value {
+        Json::Value data{ Json::objectValue };
+        data["group_id"] = TARGET_GROUP;
+        data["user_id"] = TARGET_USER;
+        data["nickname"] = "alice";
+        data["card"] = "Alice";
+        data["sex"] = "female";
+        data["age"] = 0;
+        data["area"] = "";
+        data["level"] = "5";
+        data["qq_level"] = 30;
+        data["join_time"] = 1700000000;
+        data["last_sent_time"] = MESSAGE_TIME;
+        data["title_expire_time"] = 0;
+        data["unfriendly"] = false;
+        data["card_changeable"] = true;
+        data["is_robot"] = false;
+        data["shut_up_timestamp"] = 0;
+        data["role"] = "admin";
+        data["title"] = "";
+        data["request"] = request;
+        return data;
+    }
+
+    /**
+     * @brief Build NapCat's `get_stranger_info` data, plus the request body under `request`.
+     * @param request Body of the request, echoed so tests can check what was sent.
+     * @return Data of `TARGET_USER`.
+     */
+    auto stranger_info(Json::Value const& request) -> Json::Value {
+        Json::Value data{ Json::objectValue };
+        data["user_id"] = TARGET_USER;
+        data["uid"] = "u_alice";
+        data["uin"] = std::to_string(TARGET_USER);
+        data["nickname"] = "alice";
+        data["age"] = 20;
+        data["qid"] = "";
+        data["qqLevel"] = 30;
+        data["sex"] = "female";
+        data["long_nick"] = "hello";
+        data["reg_time"] = 1500000000;
+        data["is_vip"] = false;
+        data["login_days"] = 0;
+        data["request"] = request;
+        return data;
+    }
+
+    /**
+     * @brief Answer a fake action that checks one ID parameter.
+     * @param req Request to the fake action.
+     * @param key Name of the ID parameter.
+     * @param expected Value that `key` must have.
+     * @param data Data to answer with when it does.
+     * @return `ok` with `data`, or `failed` with `FAILED_RETCODE`, as NapCat answers an unknown ID.
+     */
+    auto known_id_or_failed(
+        drogon::HttpRequestPtr const& req,
+        char const* key,
+        std::int64_t expected,
+        Json::Value const& data
+    ) -> drogon::HttpResponsePtr {
+        if (body_of(req)[key].asInt64() != expected) {
+            return envelope("failed", FAILED_RETCODE, Json::Value{}, std::string{ "unknown " } + key);
+        }
+        return ok(data);
     }
 
     /**
@@ -149,13 +304,13 @@ namespace {
         serve("/string_id/get_login_info", [](auto const&) { return ok(login_info(std::to_string(SELF_ID))); });
         serve("/echo", [](drogon::HttpRequestPtr const& req) {
             Json::Value data{ Json::objectValue };
-            data["body"] = req->getJsonObject() != nullptr ? *req->getJsonObject() : Json::Value{};
+            data["body"] = body_of(req);
             data["authorization"] = req->getHeader("authorization");
             return ok(data);
         });
         serve("/async_action", [](auto const&) { return envelope("async", 1, Json::Value{}, ""); });
-        serve("/delete_msg", [](auto const&) {
-            return envelope("failed", FAILED_RETCODE, Json::Value{}, "message not found");
+        serve("/delete_msg", [](drogon::HttpRequestPtr const& req) {
+            return known_id_or_failed(req, "message_id", STORED_MESSAGE_ID, Json::Value{});
         });
         serve("/wording_only", [](auto const&) {
             Json::Value root{ Json::objectValue };
@@ -198,6 +353,49 @@ namespace {
         serve("/failing/send_group_msg", [](auto const&) {
             return envelope("failed", FAILED_RETCODE, Json::Value{}, "group muted");
         });
+        serve("/get_msg", [](drogon::HttpRequestPtr const& req) {
+            return known_id_or_failed(req, "message_id", STORED_MESSAGE_ID, stored_group_message());
+        });
+        serve("/private/get_msg", [](auto const&) { return ok(stored_private_message()); });
+        serve("/string_format/get_msg", [](auto const&) {
+            auto data{ stored_group_message() };
+            data["message"] = data["raw_message"];
+            data["message_format"] = "string";
+            return ok(data);
+        });
+        serve("/bad/get_msg", [](auto const&) {
+            auto data{ stored_group_message() };
+            data["sender"] = Json::Value{ Json::objectValue };
+            return ok(data);
+        });
+        serve("/get_group_info", [](drogon::HttpRequestPtr const& req) {
+            return known_id_or_failed(req, "group_id", TARGET_GROUP, group_info(body_of(req)));
+        });
+        serve("/bad/get_group_info", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["group_id"] = TARGET_GROUP;
+            return ok(data);
+        });
+        serve("/get_group_member_info", [](drogon::HttpRequestPtr const& req) {
+            if (body_of(req)["group_id"].asInt64() != TARGET_GROUP) {
+                return envelope("failed", FAILED_RETCODE, Json::Value{}, "unknown group_id");
+            }
+            return known_id_or_failed(req, "user_id", TARGET_USER, group_member_info(body_of(req)));
+        });
+        serve("/no_role/get_group_member_info", [](drogon::HttpRequestPtr const& req) {
+            auto data{ group_member_info(body_of(req)) };
+            data.removeMember("role");
+            return ok(data);
+        });
+        serve("/bad/get_group_member_info", [](drogon::HttpRequestPtr const& req) {
+            auto data{ group_member_info(body_of(req)) };
+            data["unfriendly"] = "no";
+            return ok(data);
+        });
+        serve("/get_stranger_info", [](drogon::HttpRequestPtr const& req) {
+            return known_id_or_failed(req, "user_id", TARGET_USER, stranger_info(body_of(req)));
+        });
+        serve("/bad/get_stranger_info", [](auto const&) { return ok(Json::Value{}); });
         drogon::app().registerHandler(
             "/slow",
             [](drogon::HttpRequestPtr /*req*/) -> drogon::Task<drogon::HttpResponsePtr> {
@@ -279,7 +477,7 @@ DROGON_TEST(CallActionFailedIsActionError) {
     REQUIRE(!result.has_value());
     CHECK(result.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(result.error().retcode == FAILED_RETCODE);
-    CHECK(result.error().message.contains("message not found"));
+    CHECK(result.error().message.contains("unknown message_id"));
     CHECK(!result.error().body.empty());
 }
 
@@ -378,6 +576,160 @@ DROGON_TEST(SendMsgPassesActionError) {
     REQUIRE(!sent_message.has_value());
     CHECK(sent_message.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(sent_message.error().message.contains("group muted"));
+}
+
+DROGON_TEST(DeleteMsgAcceptsNullData) {
+    auto const deleted{ drogon::sync_wait(plugin_bot().DeleteMsg({ .message_id = STORED_MESSAGE_ID })) };
+    CHECK(deleted.has_value());
+}
+
+DROGON_TEST(DeleteMsgPassesActionError) {
+    auto const deleted{ drogon::sync_wait(plugin_bot().DeleteMsg({ .message_id = STORED_MESSAGE_ID + 1 })) };
+    REQUIRE(!deleted.has_value());
+    CHECK(deleted.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(deleted.error().retcode == FAILED_RETCODE);
+}
+
+DROGON_TEST(GetMsgReadsGroupMessage) {
+    auto const info{ drogon::sync_wait(plugin_bot().GetMsg({ .message_id = STORED_MESSAGE_ID })) };
+    REQUIRE(info.has_value());
+    CHECK(info->time == MESSAGE_TIME);
+    CHECK(info->message_type == "group");
+    CHECK(info->message_id == STORED_MESSAGE_ID);
+    CHECK(info->real_id == STORED_MESSAGE_ID);
+    CHECK(info->group_id == TARGET_GROUP);
+    CHECK(info->sender.user_id == TARGET_USER);
+    CHECK(info->sender.nickname == "alice");
+    CHECK(info->sender.card == "Alice");
+    CHECK(info->sender.role == "admin");
+    REQUIRE(info->message.size() == 2);
+    CHECK(info->message[0].type == "at");
+    CHECK(info->message[0].data["qq"].asString() == std::to_string(SELF_ID));
+    CHECK(info->message[1].data["text"].asString() == " hi");
+    CHECK(info->raw_message == "[CQ:at,qq=10001] hi");
+    CHECK(info->raw["group_name"].asString() == "test group");
+}
+
+DROGON_TEST(GetMsgReadsPrivateMessage) {
+    auto const info{ drogon::sync_wait(bot_at("/private").GetMsg({ .message_id = STORED_MESSAGE_ID })) };
+    REQUIRE(info.has_value());
+    CHECK(info->message_type == "private");
+    CHECK(!info->group_id.has_value());
+    CHECK(info->sender.user_id == TARGET_USER);
+    CHECK(info->sender.role.empty());
+}
+
+DROGON_TEST(GetMsgPassesActionError) {
+    auto const info{ drogon::sync_wait(plugin_bot().GetMsg({ .message_id = STORED_MESSAGE_ID + 1 })) };
+    REQUIRE(!info.has_value());
+    CHECK(info.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(info.error().message.contains("unknown message_id"));
+}
+
+DROGON_TEST(GetMsgRejectsStringFormat) {
+    auto const info{ drogon::sync_wait(bot_at("/string_format").GetMsg({ .message_id = STORED_MESSAGE_ID })) };
+    REQUIRE(!info.has_value());
+    CHECK(info.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(info.error().message.contains("messagePostFormat"));
+}
+
+DROGON_TEST(GetMsgRejectsSenderWithoutUserId) {
+    auto const info{ drogon::sync_wait(bot_at("/bad").GetMsg({ .message_id = STORED_MESSAGE_ID })) };
+    REQUIRE(!info.has_value());
+    CHECK(info.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(info.error().message.contains("sender.user_id"));
+}
+
+DROGON_TEST(GetStrangerInfoReadsProfile) {
+    auto const info{ drogon::sync_wait(plugin_bot().GetStrangerInfo({ .user_id = TARGET_USER })) };
+    REQUIRE(info.has_value());
+    CHECK(info->user_id == TARGET_USER);
+    CHECK(info->nickname == "alice");
+    CHECK(info->sex == "female");
+    CHECK(info->age == 20);
+    CHECK(info->raw["long_nick"].asString() == "hello");
+}
+
+DROGON_TEST(GetStrangerInfoRejectsNullData) {
+    auto const info{ drogon::sync_wait(bot_at("/bad").GetStrangerInfo({ .user_id = TARGET_USER })) };
+    REQUIRE(!info.has_value());
+    CHECK(info.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(info.error().message.contains("user_id"));
+}
+
+DROGON_TEST(GetGroupInfoReadsGroup) {
+    auto const info{ drogon::sync_wait(plugin_bot().GetGroupInfo({ .group_id = TARGET_GROUP })) };
+    REQUIRE(info.has_value());
+    CHECK(info->group_id == TARGET_GROUP);
+    CHECK(info->group_name == "test group");
+    CHECK(info->member_count == 42);
+    CHECK(info->max_member_count == 500);
+    CHECK(info->raw["group_remark"].isString());
+}
+
+DROGON_TEST(GetGroupInfoRejectsMissingName) {
+    auto const info{ drogon::sync_wait(bot_at("/bad").GetGroupInfo({ .group_id = TARGET_GROUP })) };
+    REQUIRE(!info.has_value());
+    CHECK(info.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(info.error().message.contains("group_name"));
+}
+
+DROGON_TEST(GetGroupMemberInfoReadsMember) {
+    auto const info{
+        drogon::sync_wait(plugin_bot().GetGroupMemberInfo({ .group_id = TARGET_GROUP, .user_id = TARGET_USER }))
+    };
+    REQUIRE(info.has_value());
+    CHECK(info->group_id == TARGET_GROUP);
+    CHECK(info->user_id == TARGET_USER);
+    CHECK(info->nickname == "alice");
+    CHECK(info->card == "Alice");
+    CHECK(info->sex == "female");
+    CHECK(info->level == "5");
+    CHECK(info->join_time == 1700000000);
+    CHECK(info->last_sent_time == MESSAGE_TIME);
+    CHECK(info->role == "admin");
+    CHECK(!info->unfriendly);
+    CHECK(info->card_changeable);
+    CHECK(info->raw["is_robot"].isBool());
+}
+
+DROGON_TEST(GetGroupMemberInfoAllowsMissingRole) {
+    auto const info{
+        drogon::sync_wait(bot_at("/no_role").GetGroupMemberInfo({ .group_id = TARGET_GROUP, .user_id = TARGET_USER }))
+    };
+    REQUIRE(info.has_value());
+    CHECK(info->role.empty());
+}
+
+DROGON_TEST(GetGroupMemberInfoRejectsWrongType) {
+    auto const info{
+        drogon::sync_wait(bot_at("/bad").GetGroupMemberInfo({ .group_id = TARGET_GROUP, .user_id = TARGET_USER }))
+    };
+    REQUIRE(!info.has_value());
+    CHECK(info.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(info.error().message.contains("unfriendly is not a boolean"));
+}
+
+DROGON_TEST(NoCacheIsSentOnlyWhenSet) {
+    auto const group{ drogon::sync_wait(plugin_bot().GetGroupInfo({ .group_id = TARGET_GROUP })) };
+    REQUIRE(group.has_value());
+    CHECK(!group->raw["request"].isMember("no_cache"));
+
+    auto const fresh{ drogon::sync_wait(plugin_bot().GetGroupInfo({ .group_id = TARGET_GROUP, .no_cache = true })) };
+    REQUIRE(fresh.has_value());
+    CHECK(fresh->raw["request"]["no_cache"].isBool());
+    CHECK(fresh->raw["request"]["no_cache"].asBool());
+
+    auto const cached{ drogon::sync_wait(
+        plugin_bot().GetGroupMemberInfo({ .group_id = TARGET_GROUP, .user_id = TARGET_USER, .no_cache = false })
+    ) };
+    REQUIRE(cached.has_value());
+    CHECK(cached->raw["request"]["no_cache"].isBool());
+    CHECK(!cached->raw["request"]["no_cache"].asBool());
+
+    auto const stranger{ drogon::sync_wait(plugin_bot().GetStrangerInfo({ .user_id = TARGET_USER })) };
+    REQUIRE(stranger.has_value());
+    CHECK(!stranger->raw["request"].isMember("no_cache"));
 }
 
 auto main(int argc, char** argv) -> int {
