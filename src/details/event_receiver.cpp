@@ -256,6 +256,26 @@ namespace {
     }
 
     /**
+     * @brief Read the fields of a `group_increase` notice.
+     * @param root Notice object.
+     * @return The fields, or the first problem found, e.g. `operator_id is missing`.
+     */
+    auto to_group_increase_notice(
+        Json::Value const& root
+    ) -> std::expected<drogon_onebot::GroupIncreaseNotice, std::string> {
+        FieldReader fields{ root };
+        drogon_onebot::GroupIncreaseNotice notice{
+            .group_id = fields.RequiredInteger<std::int64_t>("group_id"),
+            .operator_id = fields.RequiredInteger<std::int64_t>("operator_id"),
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return notice;
+    }
+
+    /**
      * @brief Read the type-specific fields of a notice.
      * @param root Notice object.
      * @param notice_type The notice's `notice_type`.
@@ -274,6 +294,9 @@ namespace {
         }
         if (notice_type == "group_decrease") {
             return to_group_decrease_notice(root);
+        }
+        if (notice_type == "group_increase") {
+            return to_group_increase_notice(root);
         }
         return drogon_onebot::NoticeDetail{};
     }

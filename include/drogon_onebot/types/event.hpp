@@ -70,11 +70,20 @@ namespace drogon_onebot {
     };
 
     /**
+     * @brief Fields of a `group_increase` notice: a member joined, by `NoticeEvent::sub_type` `approve` or `invite`.
+     */
+    struct GroupIncreaseNotice {
+        std::int64_t group_id{};    ///< Group number.
+        std::int64_t operator_id{}; ///< QQ number of the admin who approved or the member who invited; NapCat sends 0 when it cannot tell.
+        std::int64_t user_id{};     ///< QQ number of the member who joined, the bot account itself when it joined.
+    };
+
+    /**
      * @brief Type-specific fields of a notice, chosen by its `notice_type` and `sub_type`.
      *
      * `std::monostate` for any other notice, such as NapCat's extensions, whose fields stay in `NoticeEvent::raw`.
      */
-    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice>;
+    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice, GroupIncreaseNotice>;
 
     /**
      * @brief Event with `post_type` `notice`, e.g. a group member joining or a message being recalled.

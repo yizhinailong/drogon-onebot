@@ -282,6 +282,7 @@ if (!sent) {
 | `group_upload` | `GroupUploadNotice` | `group_id`、`user_id`、`file`（`id`、`name`、`size`、`busid`） |
 | `group_admin` | `GroupAdminNotice` | `group_id`、`user_id`；`sub_type` 为 `set` 或 `unset` |
 | `group_decrease` | `GroupDecreaseNotice` | `group_id`、`operator_id`、`user_id`；`sub_type` 为 `leave`、`kick`、`kick_me` 或 NapCat 的 `disband` |
+| `group_increase` | `GroupIncreaseNotice` | `group_id`、`operator_id`、`user_id`；`sub_type` 为 `approve` 或 `invite` |
 
 ```cpp
 plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {

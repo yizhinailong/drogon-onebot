@@ -86,7 +86,7 @@
 - [x] `group_upload`：群文件上传，`group_id`、`user_id`、`file`
 - [x] `group_admin`：管理员变动，`group_id`、`user_id`
 - [x] `group_decrease`：成员减少，`group_id`、`operator_id`、`user_id`
-- [ ] `group_increase`：成员增加，`group_id`、`operator_id`、`user_id`
+- [x] `group_increase`：成员增加，`group_id`、`operator_id`、`user_id`
 - [ ] `group_ban`：禁言，`group_id`、`operator_id`、`user_id`、`duration`
 - [ ] `friend_add`：新好友，`user_id`
 - [ ] `group_recall`：群消息撤回，`group_id`、`user_id`、`operator_id`、`message_id`

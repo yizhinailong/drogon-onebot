@@ -416,6 +416,21 @@ DROGON_TEST(ParsesGroupDecreaseNotice) {
     CHECK(no_notice_received());
 }
 
+DROGON_TEST(ParsesGroupIncreaseNotice) {
+    auto increase_json{ group_notice("group_increase") };
+    increase_json["sub_type"] = "invite";
+    increase_json["operator_id"] = 0;
+    CHECK(post_signed(increase_json)->getStatusCode() == drogon::k204NoContent);
+    auto const notice{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(notice.has_value());
+    CHECK(notice->sub_type == "invite");
+    auto const* const increase{ std::get_if<drogon_onebot::GroupIncreaseNotice>(&notice->detail) };
+    REQUIRE(increase != nullptr);
+    CHECK(increase->group_id == 30003);
+    CHECK(increase->operator_id == 0);
+    CHECK(increase->user_id == 20002);
+}
+
 DROGON_TEST(RejectsNoticeWithoutTypedField) {
     auto upload_json{ group_notice("group_upload") };
     upload_json["file"]["id"] = "Ae7bVzY2Pq";
