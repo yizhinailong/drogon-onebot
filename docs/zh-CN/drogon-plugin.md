@@ -140,6 +140,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetGroupList(GetGroupListParams)` | `get_group_list` | `std::vector<GroupInfo>` |
 | `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo`（`card`、`role`、`level`、`title` 及标准里的其他字段） |
 | `GetGroupMemberList(GetGroupMemberListParams)` | `get_group_member_list` | `std::vector<GroupMemberInfo>` |
+| `GetGroupHonorInfo(GetGroupHonorInfoParams)` | `get_group_honor_info` | `GroupHonorInfo`（`current_talkative` 和五个 `GroupHonorMember` 荣誉列表） |
 | `SetGroupKick(SetGroupKickParams)` | `set_group_kick` | 无（`Result<void>`） |
 | `SetGroupBan(SetGroupBanParams)` | `set_group_ban` | 无（`Result<void>`） |
 | `SetGroupWholeBan(SetGroupWholeBanParams)` | `set_group_whole_ban` | 无（`Result<void>`） |
@@ -170,6 +171,7 @@ NapCat 在这些动作上的行为：
 - 嵌套在合并转发里的合并转发直接内嵌：它的 `forward` 消息段在 `data["content"]` 里以同样的形状带着内层消息。NapCat 不能按 `id` 获取嵌套的合并转发；转发消息的 `message_id` 只用来标识，NapCat 不能对它执行操作。
 - `GroupMemberInfo::nickname` 是 QQ 昵称，群名片是 `card`。NapCat 对部分成员不给 `role`，所以它可能为空。NapCat 总是把 `unfriendly` 发成 false、`card_changeable` 发成 true、`title_expire_time` 发成 0。
 - `GetGroupMemberList` 返回的是 NapCat 缓存里的成员，没有 `get_group_member_info` 额外获取的资料详情，所以 `area` 等资料字段在列表里可能为空。
+- `GetGroupHonorInfo` 发送 `type`，默认为 `all`，缺少的列表读作空。NapCat 从 QQ 的网页读取群荣誉，读取失败时把列表留空，而不是报错。它的 `current_talkative` 是 `talkative_list` 的第一项，所以 `day_count` 为 0；没有龙王时是空对象，读作空的 `std::optional`。`strong_newbie_list` 总是为空。
 - `SendLike` 总是发送 `times`，默认为 1；标准规定每个好友每天最多 10 次。NapCat 对成功的 `send_like` 不返回 `data`，QQ 拒绝的点赞以 `Action` 报告。
 - 群设置类动作（`SetGroup*`）对标准规定了默认值的参数总是按该默认值发送，结果不受实现自身默认值的影响。
 - NapCat 不检查 QQ 对 `set_group_kick`、`set_group_admin` 和 `set_group_leave` 的处理结果，所以 QQ 拒绝的操作（例如权限不够）也会报告成功。

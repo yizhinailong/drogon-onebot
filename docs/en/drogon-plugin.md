@@ -140,6 +140,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetGroupList(GetGroupListParams)` | `get_group_list` | `std::vector<GroupInfo>` |
 | `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo` (`card`, `role`, `level`, `title`, and the other fields of the standard) |
 | `GetGroupMemberList(GetGroupMemberListParams)` | `get_group_member_list` | `std::vector<GroupMemberInfo>` |
+| `GetGroupHonorInfo(GetGroupHonorInfoParams)` | `get_group_honor_info` | `GroupHonorInfo` (`current_talkative` and the five honor lists of `GroupHonorMember`) |
 | `SetGroupKick(SetGroupKickParams)` | `set_group_kick` | Nothing (`Result<void>`) |
 | `SetGroupBan(SetGroupBanParams)` | `set_group_ban` | Nothing (`Result<void>`) |
 | `SetGroupWholeBan(SetGroupWholeBanParams)` | `set_group_whole_ban` | Nothing (`Result<void>`) |
@@ -170,6 +171,7 @@ NapCat's behavior with these actions:
 - A forward nested in a forward comes inline: its `forward` segment carries the inner messages, in the same shape, in `data["content"]`. NapCat cannot fetch a nested forward by its `id`, and the `message_id` of a forwarded message only identifies it; NapCat cannot act on it.
 - `GroupMemberInfo::nickname` is the QQ nickname; the group card is `card`. NapCat leaves out `role` for some members, so it can be empty. NapCat always sends `unfriendly` as false, `card_changeable` as true, and `title_expire_time` as 0.
 - `GetGroupMemberList` returns NapCat's cached members, without the profile details that `get_group_member_info` adds, so profile fields such as `area` can be empty there.
+- `GetGroupHonorInfo` sends `type`, `all` by default, and reads a missing list as empty. NapCat reads the honors from QQ's web page and, when that fails, leaves the list empty instead of failing. Its `current_talkative` is the first entry of `talkative_list`, so `day_count` is 0, and an empty object when there is none, which reads as an empty `std::optional`. `strong_newbie_list` is always empty.
 - `SendLike` always sends `times`, 1 by default; the standard allows 10 likes per friend a day. NapCat answers a successful `send_like` without `data`, and reports a like that QQ refuses as `Action`.
 - The group setters (`SetGroup*`) always send the parameters that the standard gives a default, with that default, so the result does not depend on the implementation's own defaults.
 - NapCat does not check QQ's answer for `set_group_kick`, `set_group_admin`, and `set_group_leave`, so a change that QQ refuses, for example without the needed rights, still succeeds.

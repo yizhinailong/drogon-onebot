@@ -241,6 +241,17 @@ namespace drogon_onebot {
         ) const -> drogon::Task<Result<std::vector<GroupMemberInfo>>>;
 
         /**
+         * @brief Call `get_group_honor_info`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the group's honors, or why the action failed.
+         * @note NapCat reads the honors from QQ's web page and leaves a list empty when that
+         * fails, so an empty list does not prove that nobody holds the honor.
+         */
+        [[nodiscard]] auto GetGroupHonorInfo(
+            GetGroupHonorInfoParams params
+        ) const -> drogon::Task<Result<GroupHonorInfo>>;
+
+        /**
          * @brief Call `set_group_kick`.
          * @param params Request fields, taken by value so they outlive the caller's frame.
          * @return Task yielding nothing on success, or why the action failed.

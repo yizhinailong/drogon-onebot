@@ -4,6 +4,7 @@
  */
 #include <cstdint>
 #include <expected>
+#include <format>
 #include <string>
 #include <utility>
 #include <vector>
@@ -64,6 +65,43 @@ namespace {
             return std::unexpected{ fields.Problem() };
         }
         return info;
+    }
+
+    /**
+     * @brief Read one honor holder of the `get_group_honor_info` result.
+     * @param data Object to read: `current_talkative` or an entry of one of the lists.
+     * @return The member, or the first problem found, e.g. `nickname is missing`.
+     */
+    auto to_group_honor_member(Json::Value const& data) -> std::expected<drogon_onebot::GroupHonorMember, std::string> {
+        drogon_onebot::details::FieldReader fields{ data };
+        drogon_onebot::GroupHonorMember member{
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .nickname = fields.RequiredString("nickname"),
+            .avatar = fields.String("avatar"),
+            .description = fields.String("description"),
+            .day_count = fields.Integer<std::int32_t>("day_count").value_or(0),
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return member;
+    }
+
+    /**
+     * @brief Read one honor list of the `get_group_honor_info` result.
+     * @param data The result.
+     * @param key Name of the list, e.g. `talkative_list`.
+     * @return The members, none when the list is absent, or the first problem found.
+     */
+    auto to_group_honor_list(
+        Json::Value const& data,
+        char const* key
+    ) -> std::expected<std::vector<drogon_onebot::GroupHonorMember>, std::string> {
+        auto const& list{ drogon_onebot::details::member(data, key) };
+        if (list.isNull()) {
+            return std::vector<drogon_onebot::GroupHonorMember>{};
+        }
+        return drogon_onebot::details::read_array<drogon_onebot::GroupHonorMember>(list, key, to_group_honor_member);
     }
 
 } // namespace
@@ -172,6 +210,57 @@ namespace drogon_onebot {
             co_return std::unexpected{ details::invalid_data_error("get_group_member_list", members.error(), *data) };
         }
         co_return std::move(*members);
+    }
+
+    /**
+     * @brief Call `get_group_honor_info`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the group's honors, or why the action failed.
+     * @note NapCat reads the honors from QQ's web page and leaves a list empty when that
+     * fails, so an empty list does not prove that nobody holds the honor.
+     */
+    auto OneBot::GetGroupHonorInfo(
+        GetGroupHonorInfoParams params
+    ) const -> drogon::Task<Result<GroupHonorInfo>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        body["group_id"] = params.group_id;
+        body["type"] = params.type;
+        auto const data{ co_await transport->Call("get_group_honor_info", std::move(body), params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        details::FieldReader fields{ *data };
+        GroupHonorInfo info{ .group_id = fields.RequiredInteger<std::int64_t>("group_id"), .raw = *data };
+        if (!fields.Problem().empty()) {
+            co_return std::unexpected{ details::invalid_data_error("get_group_honor_info", fields.Problem(), *data) };
+        }
+        // NapCat sends an empty object when nobody is the most talkative member.
+        auto const& current{ details::member(*data, "current_talkative") };
+        if (!current.empty()) {
+            auto talkative{ to_group_honor_member(current) };
+            if (!talkative) {
+                co_return std::unexpected{
+                    details::invalid_data_error("get_group_honor_info", std::format("current_talkative.{}", talkative.error()), *data)
+                };
+            }
+            info.current_talkative = std::move(*talkative);
+        }
+        for (auto const& [key, list] : {
+                 std::pair{ "talkative_list", &info.talkative_list },
+                 std::pair{ "performer_list", &info.performer_list },
+                 std::pair{ "legend_list", &info.legend_list },
+                 std::pair{ "strong_newbie_list", &info.strong_newbie_list },
+                 std::pair{ "emotion_list", &info.emotion_list },
+             }) {
+            auto members{ to_group_honor_list(*data, key) };
+            if (!members) {
+                co_return std::unexpected{ details::invalid_data_error("get_group_honor_info", members.error(), *data) };
+            }
+            *list = std::move(*members);
+        }
+        co_return info;
     }
 
     /**

@@ -261,6 +261,45 @@ namespace {
     }
 
     /**
+     * @brief Build one honor holder as NapCat's `get_group_honor_info` lists it.
+     * @param user_id QQ number, sent as a string as NapCat passes QQ's `uin` through.
+     * @param nickname Nickname.
+     * @param description Description of the honor.
+     * @return Object with `user_id`, `nickname`, `avatar`, and `description`.
+     */
+    auto honor_member(
+        std::int64_t user_id,
+        char const* nickname,
+        char const* description
+    ) -> Json::Value {
+        Json::Value entry{ Json::objectValue };
+        entry["user_id"] = std::to_string(user_id);
+        entry["nickname"] = nickname;
+        entry["avatar"] = "https://example.invalid/avatar.png";
+        entry["description"] = description;
+        return entry;
+    }
+
+    /**
+     * @brief Build NapCat's `get_group_honor_info` data, plus the request body under `request`.
+     * @param request Body of the request, echoed so tests can check what was sent.
+     * @return Honors of `TARGET_GROUP`: `TARGET_USER` as the most talkative member and as a
+     * performer, and empty lists otherwise, as NapCat always sends every list.
+     */
+    auto group_honor_info(Json::Value const& request) -> Json::Value {
+        Json::Value data{ Json::objectValue };
+        data["group_id"] = TARGET_GROUP;
+        data["current_talkative"] = honor_member(TARGET_USER, "alice", "talkative for 3 days");
+        data["talkative_list"].append(honor_member(TARGET_USER, "alice", "talkative for 3 days"));
+        data["performer_list"].append(honor_member(TARGET_USER, "alice", "performer"));
+        for (auto const* key : { "legend_list", "emotion_list", "strong_newbie_list" }) {
+            data[key] = Json::Value{ Json::arrayValue };
+        }
+        data["request"] = request;
+        return data;
+    }
+
+    /**
      * @brief Build NapCat's `get_stranger_info` data, plus the request body under `request`.
      * @param request Body of the request, echoed so tests can check what was sent.
      * @return Data of `TARGET_USER`.
@@ -591,6 +630,21 @@ namespace {
         serve("/bad/get_group_member_list", [](drogon::HttpRequestPtr const& req) {
             auto data{ group_member_list(body_of(req)) };
             data[1].removeMember("user_id");
+            return ok(data);
+        });
+        serve("/get_group_honor_info", [](drogon::HttpRequestPtr const& req) {
+            return known_id_or_failed(req, "group_id", TARGET_GROUP, group_honor_info(body_of(req)));
+        });
+        serve("/nobody/get_group_honor_info", [](drogon::HttpRequestPtr const& req) {
+            auto data{ group_honor_info(body_of(req)) };
+            data["current_talkative"] = Json::Value{ Json::objectValue };
+            data["talkative_list"] = Json::Value{ Json::arrayValue };
+            data.removeMember("performer_list");
+            return ok(data);
+        });
+        serve("/bad/get_group_honor_info", [](drogon::HttpRequestPtr const& req) {
+            auto data{ group_honor_info(body_of(req)) };
+            data["performer_list"][0].removeMember("nickname");
             return ok(data);
         });
         serve("/get_stranger_info", [](drogon::HttpRequestPtr const& req) {
@@ -1105,6 +1159,49 @@ DROGON_TEST(GetGroupMemberListPassesActionError) {
     REQUIRE(!members.has_value());
     CHECK(members.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(members.error().message.contains("unknown group_id"));
+}
+
+DROGON_TEST(GetGroupHonorInfoReadsHonors) {
+    auto const honors{ drogon::sync_wait(plugin_bot().GetGroupHonorInfo({ .group_id = TARGET_GROUP })) };
+    REQUIRE(honors.has_value());
+    CHECK(honors->group_id == TARGET_GROUP);
+    REQUIRE(honors->current_talkative.has_value());
+    CHECK(honors->current_talkative->user_id == TARGET_USER);
+    CHECK(honors->current_talkative->nickname == "alice");
+    CHECK(honors->current_talkative->day_count == 0);
+    REQUIRE(honors->talkative_list.size() == 1);
+    CHECK(honors->talkative_list[0].description == "talkative for 3 days");
+    REQUIRE(honors->performer_list.size() == 1);
+    CHECK(honors->performer_list[0].user_id == TARGET_USER);
+    CHECK(honors->legend_list.empty());
+    CHECK(honors->strong_newbie_list.empty());
+    CHECK(honors->raw["request"]["type"].asString() == "all");
+
+    auto const talkative{ drogon::sync_wait(plugin_bot().GetGroupHonorInfo({ .group_id = TARGET_GROUP, .type = "talkative" })) };
+    REQUIRE(talkative.has_value());
+    CHECK(talkative->raw["request"]["type"].asString() == "talkative");
+}
+
+DROGON_TEST(GetGroupHonorInfoAllowsNobodyAndMissingLists) {
+    auto const honors{ drogon::sync_wait(bot_at("/nobody").GetGroupHonorInfo({ .group_id = TARGET_GROUP })) };
+    REQUIRE(honors.has_value());
+    CHECK(!honors->current_talkative.has_value());
+    CHECK(honors->talkative_list.empty());
+    CHECK(honors->performer_list.empty());
+}
+
+DROGON_TEST(GetGroupHonorInfoRejectsInvalidEntry) {
+    auto const honors{ drogon::sync_wait(bot_at("/bad").GetGroupHonorInfo({ .group_id = TARGET_GROUP })) };
+    REQUIRE(!honors.has_value());
+    CHECK(honors.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(honors.error().message.contains("performer_list[0].nickname is missing"));
+}
+
+DROGON_TEST(GetGroupHonorInfoPassesActionError) {
+    auto const honors{ drogon::sync_wait(plugin_bot().GetGroupHonorInfo({ .group_id = TARGET_GROUP + 1 })) };
+    REQUIRE(!honors.has_value());
+    CHECK(honors.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(honors.error().message.contains("unknown group_id"));
 }
 
 DROGON_TEST(SetGroupKickSendsRejectFlag) {

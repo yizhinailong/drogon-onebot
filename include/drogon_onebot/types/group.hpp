@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <json/value.h>
 
@@ -82,6 +83,42 @@ namespace drogon_onebot {
         std::int64_t group_id{};      ///< Group number.
         std::optional<bool> no_cache; ///< Whether to skip the implementation's cache, a NapCat extension; empty sends none.
         double timeout{ 30.0 };       ///< Seconds to wait for the response; 0 waits forever.
+    };
+
+    /**
+     * @brief Arguments of `OneBot::GetGroupHonorInfo()`.
+     */
+    struct GetGroupHonorInfoParams {
+        std::int64_t group_id{};   ///< Group number.
+        std::string type{ "all" }; ///< Honor to fetch: `talkative`, `performer`, `legend`, `strong_newbie`, `emotion`, or `all`.
+        double timeout{ 30.0 };    ///< Seconds to wait for the response; 0 waits forever.
+    };
+
+    /**
+     * @brief Member who holds a group honor, from `get_group_honor_info`.
+     */
+    struct GroupHonorMember {
+        std::int64_t user_id{};   ///< QQ number of the member.
+        std::string nickname;     ///< Nickname of the member.
+        std::string avatar;       ///< URL of the member's avatar; empty when absent.
+        std::string description;  ///< Description of the honor; empty when absent.
+        std::int32_t day_count{}; ///< Days in a row as the most talkative member, for `current_talkative` only; 0 when absent, as from NapCat.
+    };
+
+    /**
+     * @brief Honors of a group, from `get_group_honor_info`.
+     *
+     * The standard fills only the lists that `type` asks for; the others read as empty.
+     */
+    struct GroupHonorInfo {
+        std::int64_t group_id{};                           ///< Group number.
+        std::optional<GroupHonorMember> current_talkative; ///< Current most talkative member; empty when there is none or it was not asked for.
+        std::vector<GroupHonorMember> talkative_list;      ///< Past most talkative members.
+        std::vector<GroupHonorMember> performer_list;      ///< Holders of the performer honor.
+        std::vector<GroupHonorMember> legend_list;         ///< Holders of the legend honor.
+        std::vector<GroupHonorMember> strong_newbie_list;  ///< Holders of the strong newbie honor; NapCat always sends none.
+        std::vector<GroupHonorMember> emotion_list;        ///< Holders of the emotion honor.
+        Json::Value raw;                                   ///< Whole `data` as received.
     };
 
     /**
