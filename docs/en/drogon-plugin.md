@@ -216,6 +216,7 @@ NapCat's behavior with these actions:
 | `Reply(message_id)` | `{"type": "reply", "data": {"id": "<message_id>"}}` |
 | `Image(file)` | `{"type": "image", "data": {"file": file}}` |
 | `Face(id)` | `{"type": "face", "data": {"id": "<id>"}}` |
+| `Record(file)` | `{"type": "record", "data": {"file": file}}` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -232,7 +233,8 @@ if (!sent) {
 ```
 
 - IDs are sent as strings, the form of the standard's examples. NapCat accepts both strings and numbers.
-- `Image` takes an `http://` or `https://` URL, a `file://` URI or a path on the host that runs the OneBot implementation, or `base64://` followed by the image data. When NapCat runs in Docker, a path refers to the NapCat container's file system.
+- `Image` and `Record` take an `http://` or `https://` URL, a `file://` URI or a path on the host that runs the OneBot implementation, or `base64://` followed by the file data. When NapCat runs in Docker, a path refers to the NapCat container's file system. `Record` also takes the `file` of a received `record` segment.
+- NapCat converts a voice to QQ's SILK format with ffmpeg. When it cannot fetch or convert a file, the whole send fails with `Action`.
 - NapCat silently drops some segments and still sends the rest: `at` in a private message, and `reply` or `face` with an ID it does not know.
 - For other segment types or extra fields, build or change `type` and `data` directly, for example `image.data["summary"] = "[picture]";`.
 - Received segments carry their IDs as strings too. The `id` of a received `reply` segment is a decimal string; convert it to an integer for `GetMsg`.

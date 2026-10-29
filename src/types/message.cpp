@@ -86,4 +86,15 @@ namespace drogon_onebot {
         return segment("face", "id", std::to_string(id));
     }
 
+    /**
+     * @brief Build a voice segment.
+     * @param file Voice to send, in the forms that `Image()` takes, or the `file` of a received `record` segment.
+     * @return `{ "type": "record", "data": { "file": <file> } }`.
+     * @note NapCat converts the voice to QQ's SILK format with ffmpeg, and fails the whole
+     * send when it cannot fetch or convert the file.
+     */
+    auto MessageSegment::Record(std::string file) -> MessageSegment {
+        return segment("record", "file", std::move(file));
+    }
+
 } // namespace drogon_onebot

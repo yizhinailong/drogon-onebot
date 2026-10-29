@@ -55,6 +55,15 @@ DROGON_TEST(ImagePassesFileThrough) {
     }
 }
 
+DROGON_TEST(RecordPassesFileThrough) {
+    for (auto const* file : { "https://example.com/a.amr", "file:///tmp/a.mp3", "8C1B4E7B.amr" }) {
+        auto const record{ drogon_onebot::MessageSegment::Record(file) };
+        CHECK(record.type == "record");
+        CHECK(record.data["file"].asString() == file);
+        CHECK(record.data.size() == 1);
+    }
+}
+
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
     auto image{ drogon_onebot::MessageSegment::Image("https://example.com/a.png") };
     image.data["summary"] = "[picture]";

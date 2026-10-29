@@ -75,6 +75,15 @@ namespace drogon_onebot {
          * @note NapCat drops a face whose ID it does not know.
          */
         [[nodiscard]] static auto Face(std::int32_t id) -> MessageSegment;
+
+        /**
+         * @brief Build a voice segment.
+         * @param file Voice to send, in the forms that `Image()` takes, or the `file` of a received `record` segment.
+         * @return `{ "type": "record", "data": { "file": <file> } }`.
+         * @note NapCat converts the voice to QQ's SILK format with ffmpeg, and fails the whole
+         * send when it cannot fetch or convert the file.
+         */
+        [[nodiscard]] static auto Record(std::string file) -> MessageSegment;
     };
 
     /**

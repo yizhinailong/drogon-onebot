@@ -66,9 +66,9 @@
 
 ## 消息段构造函数
 
-已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`。`shake`、`anonymous` 等是老版 QQ 的功能，加之前先确认 NapCat 是否还支持。
+已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`、`Record`。`shake`、`anonymous` 等是老版 QQ 的功能，加之前先确认 NapCat 是否还支持。
 
-- [ ] `record`：语音
+- [x] `record`：语音
 - [ ] `video`：短视频
 - [ ] `rps`：猜拳
 - [ ] `dice`：掷骰子
