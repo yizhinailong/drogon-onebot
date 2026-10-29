@@ -141,6 +141,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `SetGroupBan(SetGroupBanParams)` | `set_group_ban` | 无（`Result<void>`） |
 | `SetGroupWholeBan(SetGroupWholeBanParams)` | `set_group_whole_ban` | 无（`Result<void>`） |
 | `SetGroupAdmin(SetGroupAdminParams)` | `set_group_admin` | 无（`Result<void>`） |
+| `SetGroupCard(SetGroupCardParams)` | `set_group_card` | 无（`Result<void>`） |
 
 类型化动作读取 `data` 的规则：
 
@@ -165,6 +166,7 @@ NapCat 在这些动作上的行为：
 - NapCat 不检查 QQ 对 `set_group_kick` 和 `set_group_admin` 的处理结果，所以 QQ 拒绝的操作（例如权限不够）也会报告成功。
 - `SetGroupBan` 以秒为单位发送 `duration`，默认 30 分钟，与标准一致；0 表示解除禁言。NapCat 自己的默认值是 0。对不在群里的成员、群主，以及机器人账号不是群主时的管理员，NapCat 以 `Action` 失败。
 - `SetGroupAdmin` 发送 `enable`，默认为 true，与标准一致。不带它时，NapCat 的 `set_group_admin` 反而会取消管理员。
+- `SetGroupCardParams::card` 为空时删除群名片。NapCat 的 `set_group_card` 设置后会在约 3 秒内读回群名片，到时仍未改变就以 `Action` 失败。
 
 ### 消息段
 

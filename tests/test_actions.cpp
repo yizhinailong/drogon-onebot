@@ -521,6 +521,7 @@ namespace {
         serve_setter("set_group_ban", "cannot ban owner");
         serve_setter("set_group_whole_ban", "SetGroupWholeBan failed: ERR_NOT_GROUP_ADMIN");
         serve_setter("set_group_admin", "get Uid Error");
+        serve_setter("set_group_card", "group card not applied");
         serve("/send_like", [](drogon::HttpRequestPtr const& req) {
             // Refuse more likes than the standard's daily limit of 10, as QQ would.
             auto const body{ body_of(req) };
@@ -1025,6 +1026,32 @@ DROGON_TEST(SetGroupAdminPassesActionError) {
     REQUIRE(!promoted.has_value());
     CHECK(promoted.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(promoted.error().message.contains("get Uid Error"));
+}
+
+DROGON_TEST(SetGroupCardSendsCard) {
+    auto const renamed{
+        drogon::sync_wait(plugin_bot().SetGroupCard({ .group_id = TARGET_GROUP, .user_id = TARGET_USER, .card = "Alice" }))
+    };
+    CHECK(renamed.has_value());
+    auto const rename{ sent_to("set_group_card") };
+    CHECK(rename["group_id"].asInt64() == TARGET_GROUP);
+    CHECK(rename["user_id"].asInt64() == TARGET_USER);
+    CHECK(rename["card"].asString() == "Alice");
+
+    auto const cleared{ drogon::sync_wait(plugin_bot().SetGroupCard({ .group_id = TARGET_GROUP, .user_id = TARGET_USER })) };
+    CHECK(cleared.has_value());
+    auto const clear{ sent_to("set_group_card") };
+    CHECK(clear["card"].isString());
+    CHECK(clear["card"].asString().empty());
+}
+
+DROGON_TEST(SetGroupCardPassesActionError) {
+    auto const renamed{
+        drogon::sync_wait(bot_at("/failing").SetGroupCard({ .group_id = TARGET_GROUP, .user_id = TARGET_USER, .card = "Alice" }))
+    };
+    REQUIRE(!renamed.has_value());
+    CHECK(renamed.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(renamed.error().message.contains("group card not applied"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

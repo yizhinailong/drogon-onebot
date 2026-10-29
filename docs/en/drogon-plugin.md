@@ -141,6 +141,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `SetGroupBan(SetGroupBanParams)` | `set_group_ban` | Nothing (`Result<void>`) |
 | `SetGroupWholeBan(SetGroupWholeBanParams)` | `set_group_whole_ban` | Nothing (`Result<void>`) |
 | `SetGroupAdmin(SetGroupAdminParams)` | `set_group_admin` | Nothing (`Result<void>`) |
+| `SetGroupCard(SetGroupCardParams)` | `set_group_card` | Nothing (`Result<void>`) |
 
 How typed actions read `data`:
 
@@ -165,6 +166,7 @@ NapCat's behavior with these actions:
 - NapCat does not check QQ's answer for `set_group_kick` and `set_group_admin`, so a change that QQ refuses, for example without the needed rights, still succeeds.
 - `SetGroupBan` sends `duration` in seconds, 30 minutes by default as in the standard; 0 lifts the mute. NapCat's own default is 0. NapCat fails with `Action` for a member not in the group, for the owner, and for an admin unless the bot account owns the group.
 - `SetGroupAdmin` sends `enable`, true by default as in the standard. Without it, NapCat's `set_group_admin` would remove the admin role instead.
+- An empty `SetGroupCardParams::card` removes the card. NapCat's `set_group_card` reads the card back for about 3 seconds after setting it and fails with `Action` when it has not changed by then.
 
 ### Message segments
 
