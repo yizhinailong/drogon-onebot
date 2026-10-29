@@ -457,10 +457,14 @@ namespace {
             .request_type = fields.RequiredString("request_type"),
             .sub_type = fields.String("sub_type"),
             .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .group_id = fields.Integer<std::int64_t>("group_id"),
             .comment = fields.String("comment"),
             .flag = fields.RequiredString("flag"),
             .raw = root,
         };
+        if (fields.Problem().empty() && event.request_type == "group" && !event.group_id) {
+            return std::unexpected{ std::string{ "request event: group_id is missing" } };
+        }
         return finish(fields, "request", std::move(event));
     }
 

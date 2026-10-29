@@ -265,14 +265,15 @@ if (!sent) {
 |---|---|---|---|
 | `OnMessage(MessageHandler)` | `message` | `MessageEvent` | `message_type`、`sub_type`、`message_id`、`user_id`、`group_id`（仅群消息）、`message`、`raw_message`、`font`、`sender` |
 | `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`、`sub_type`、`detail`（见“通知详情”） |
-| `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`、`sub_type`、`user_id`、`comment`、`flag` |
+| `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`、`sub_type`、`user_id`、`group_id`（仅群请求）、`comment`、`flag` |
 | `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`、`sub_type` |
 
 - 每种事件都有 `time`、`self_id`，以及完整原始事件 `raw`（`Json::Value`）。没有单独成员的字段从 `raw` 读取，例如 NapCat `group_card` 通知的 `card_new`、心跳的 `interval`。
 - 回调类型是 `std::function<drogon::Task<>(Event)>`。
 - 其他 `post_type`，例如开启 `reportSelfMessage` 后 NapCat 上报的 `message_sent`，回 204 后丢弃。
 - NapCat 有时把 `user_id`、`group_id` 发成字符串，解析时按数字读取。
-- 请求事件缺少 `user_id` 或 `flag` 时返回 400。NapCat 只上报未读、不是机器人自己发起、尚未处理的好友请求。
+- 请求事件缺少 `user_id` 或 `flag`，或群请求缺少 `group_id` 时返回 400。NapCat 只上报未读、不是机器人自己发起、尚未处理的好友请求。
+- 群请求的 `sub_type` 为 `add` 时是加群申请，`user_id` 是申请人；为 `invite` 时是邀请机器人入群，`user_id` 是邀请人。群成员邀请别人入群、需要管理员审核时，NapCat 也报为 `add`。
 
 ### 通知详情
 

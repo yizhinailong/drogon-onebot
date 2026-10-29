@@ -153,14 +153,15 @@ namespace drogon_onebot {
      * @brief Event with `post_type` `request`: a friend request or a group join request or invitation.
      */
     struct RequestEvent {
-        std::int64_t time{};      ///< Unix time in seconds when the event happened.
-        std::int64_t self_id{};   ///< QQ number of the bot account that received the event.
-        std::string request_type; ///< `friend` or `group`.
-        std::string sub_type;     ///< `add` or `invite` for group requests; empty for friend requests.
-        std::int64_t user_id{};   ///< QQ number of who sent the request: the requester, or the inviter of an invitation.
-        std::string comment;      ///< Verification message; empty when absent.
-        std::string flag;         ///< ID of the request, for `OneBot::SetFriendAddRequest()` or `OneBot::SetGroupAddRequest()`.
-        Json::Value raw;          ///< Whole event as received, for fields without a member here.
+        std::int64_t time{};                  ///< Unix time in seconds when the event happened.
+        std::int64_t self_id{};               ///< QQ number of the bot account that received the event.
+        std::string request_type;             ///< `friend` or `group`.
+        std::string sub_type;                 ///< `add` or `invite` for group requests; empty for friend requests.
+        std::int64_t user_id{};               ///< QQ number of who sent the request: the requester, or the inviter of an invitation.
+        std::optional<std::int64_t> group_id; ///< Group number of a group request; empty for friend requests.
+        std::string comment;                  ///< Verification message; empty when absent.
+        std::string flag;                     ///< ID of the request, for `OneBot::SetFriendAddRequest()` or `OneBot::SetGroupAddRequest()`.
+        Json::Value raw;                      ///< Whole event as received, for fields without a member here.
     };
 
     /**

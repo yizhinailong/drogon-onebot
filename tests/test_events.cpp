@@ -351,6 +351,7 @@ DROGON_TEST(DispatchesNoticeRequestAndMetaEvents) {
     CHECK(request->user_id == 20002);
     CHECK(request->comment == "hi");
     CHECK(request->flag == "flag-1");
+    CHECK(!request->group_id.has_value());
 
     request_json.removeMember("flag");
     auto const no_flag{ post_signed(request_json) };
@@ -556,6 +557,30 @@ DROGON_TEST(RejectsNoticeWithoutTypedField) {
     CHECK(response->getStatusCode() == drogon::k400BadRequest);
     CHECK(std::string{ response->body() }.contains("file.name is missing"));
     CHECK(no_notice_received());
+}
+
+DROGON_TEST(ParsesGroupRequest) {
+    auto request_json{ base_event("request") };
+    request_json["request_type"] = "group";
+    request_json["sub_type"] = "invite";
+    request_json["group_id"] = 30003;
+    request_json["user_id"] = 20002;
+    request_json["comment"] = "";
+    request_json["flag"] = "1761700000000000";
+    CHECK(post_signed(request_json)->getStatusCode() == drogon::k204NoContent);
+    auto const request{ g_requests.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(request.has_value());
+    CHECK(request->sub_type == "invite");
+    CHECK(request->group_id == 30003);
+    CHECK(request->user_id == 20002);
+    CHECK(request->comment.empty());
+    CHECK(request->flag == "1761700000000000");
+
+    request_json.removeMember("group_id");
+    auto const response{ post_signed(request_json) };
+    CHECK(response->getStatusCode() == drogon::k400BadRequest);
+    CHECK(std::string{ response->body() }.contains("group_id is missing"));
+    CHECK(!g_requests.Pop(test_support::NO_EVENT_WAIT).has_value());
 }
 
 DROGON_TEST(DropsUnknownPostType) {

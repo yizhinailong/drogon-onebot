@@ -265,14 +265,15 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 |---|---|---|---|
 | `OnMessage(MessageHandler)` | `message` | `MessageEvent` | `message_type`, `sub_type`, `message_id`, `user_id`, `group_id` (group messages only), `message`, `raw_message`, `font`, `sender` |
 | `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`, `sub_type`, `detail` (see "Notice details") |
-| `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`, `sub_type`, `user_id`, `comment`, `flag` |
+| `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`, `sub_type`, `user_id`, `group_id` (group requests only), `comment`, `flag` |
 | `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`, `sub_type` |
 
 - Every event has `time`, `self_id`, and the whole original event in `raw` (`Json::Value`). Read the fields that have no member of their own from `raw`, such as the `card_new` of NapCat's `group_card` notice or the `interval` of a heartbeat.
 - The callback type is `std::function<drogon::Task<>(Event)>`.
 - Other `post_type` values, such as the `message_sent` that NapCat reports when `reportSelfMessage` is on, get 204 and are dropped.
 - NapCat sometimes sends `user_id` and `group_id` as strings. They are parsed as numbers.
-- A request event without `user_id` or `flag` gets 400. NapCat reports only friend requests that are unread, that the bot did not send, and that are not decided yet.
+- A request event without `user_id` or `flag`, or a group request without `group_id`, gets 400. NapCat reports only friend requests that are unread, that the bot did not send, and that are not decided yet.
+- For a group request, `sub_type` `add` is a request to join, where `user_id` is the requester, and `invite` invites the bot account, where `user_id` is the inviter. NapCat also reports as `add` a member's invitation of someone else that needs an admin's approval.
 
 ### Notice details
 
