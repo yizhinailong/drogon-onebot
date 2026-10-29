@@ -484,6 +484,26 @@ DROGON_TEST(ParsesGroupRecallNotice) {
     CHECK(recall->message_id == -2147000001);
 }
 
+DROGON_TEST(ParsesFriendRecallNotice) {
+    auto recall_json{ base_event("notice") };
+    recall_json["notice_type"] = "friend_recall";
+    recall_json["user_id"] = 20002;
+    recall_json["message_id"] = 9;
+    CHECK(post_signed(recall_json)->getStatusCode() == drogon::k204NoContent);
+    auto const notice{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(notice.has_value());
+    auto const* const recall{ std::get_if<drogon_onebot::FriendRecallNotice>(&notice->detail) };
+    REQUIRE(recall != nullptr);
+    CHECK(recall->user_id == 20002);
+    CHECK(recall->message_id == 9);
+
+    recall_json["message_id"] = "nine";
+    auto const response{ post_signed(recall_json) };
+    CHECK(response->getStatusCode() == drogon::k400BadRequest);
+    CHECK(std::string{ response->body() }.contains("message_id is not an integer"));
+    CHECK(no_notice_received());
+}
+
 DROGON_TEST(RejectsNoticeWithoutTypedField) {
     auto upload_json{ group_notice("group_upload") };
     upload_json["file"]["id"] = "Ae7bVzY2Pq";
