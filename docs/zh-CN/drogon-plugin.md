@@ -219,6 +219,7 @@ NapCat 在这些动作上的行为：
 | `Record(file)` | `{"type": "record", "data": {"file": file}}` |
 | `Video(file)` | `{"type": "video", "data": {"file": file}}` |
 | `ContactFriend(user_id)`、`ContactGroup(group_id)` | `{"type": "contact", "data": {"type": "qq", "id": "<user_id>"}}`，或 `"type": "group"` 加 `"id": "<group_id>"` |
+| `Json(data)` | `{"type": "json", "data": {"data": data}}` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -239,6 +240,7 @@ if (!sent) {
 - NapCat 用 ffmpeg 把语音转换成 QQ 的 SILK 格式。获取或转换文件失败时，整条消息以 `Action` 发送失败。
 - NapCat 用 ffmpeg 从视频里截取封面，截取不了时用默认封面。要发送别的封面，设置 NapCat 的扩展字段 `thumb`，例如 `video.data["thumb"] = "https://example.com/cover.jpg";`。
 - 对于 `contact` 消息段，NapCat 发送 QQ 为该用户或群生成的推荐卡片。
+- `Json` 接受字符串形式的 JSON 卡片内容，NapCat 原样交给 QQ。
 - NapCat 会静默丢弃某些消息段，其余照常发送：私聊里的 `at`，以及 ID 不认识的 `reply` 或 `face`。
 - 其他消息段类型或额外字段，直接构造或修改 `type` 和 `data`，例如 `image.data["summary"] = "[图片]";`。
 - 收到的消息段里 ID 同样是字符串。收到的 `reply` 消息段的 `id` 是十进制字符串，传给 `GetMsg` 前要转成整数。

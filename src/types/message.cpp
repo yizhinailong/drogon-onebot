@@ -143,4 +143,14 @@ namespace drogon_onebot {
         return contact("group", group_id);
     }
 
+    /**
+     * @brief Build a JSON (card) segment.
+     * @param data Content of the card, a JSON document as a string.
+     * @return `{ "type": "json", "data": { "data": <data> } }`.
+     * @note NapCat passes `data` to QQ as the card's content as is.
+     */
+    auto MessageSegment::Json(std::string data) -> MessageSegment {
+        return segment("json", "data", std::move(data));
+    }
+
 } // namespace drogon_onebot

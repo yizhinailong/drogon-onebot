@@ -219,6 +219,7 @@ NapCat's behavior with these actions:
 | `Record(file)` | `{"type": "record", "data": {"file": file}}` |
 | `Video(file)` | `{"type": "video", "data": {"file": file}}` |
 | `ContactFriend(user_id)`, `ContactGroup(group_id)` | `{"type": "contact", "data": {"type": "qq", "id": "<user_id>"}}`, or `"type": "group"` with `"id": "<group_id>"` |
+| `Json(data)` | `{"type": "json", "data": {"data": data}}` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -239,6 +240,7 @@ if (!sent) {
 - NapCat converts a voice to QQ's SILK format with ffmpeg. When it cannot fetch or convert a file, the whole send fails with `Action`.
 - NapCat takes a video's cover from the video with ffmpeg, or uses a default cover when it cannot. To send another cover, set NapCat's extension `thumb`, for example `video.data["thumb"] = "https://example.com/cover.jpg";`.
 - For a `contact` segment, NapCat sends the recommendation card that QQ builds for that user or group.
+- `Json` takes the card's content as a JSON string, which NapCat passes to QQ as is.
 - NapCat silently drops some segments and still sends the rest: `at` in a private message, and `reply` or `face` with an ID it does not know.
 - For other segment types or extra fields, build or change `type` and `data` directly, for example `image.data["summary"] = "[picture]";`.
 - Received segments carry their IDs as strings too. The `id` of a received `reply` segment is a decimal string; convert it to an integer for `GetMsg`.

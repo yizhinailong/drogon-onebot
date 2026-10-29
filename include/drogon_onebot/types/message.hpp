@@ -109,6 +109,14 @@ namespace drogon_onebot {
          * @note NapCat sends the recommendation card that QQ builds for the group.
          */
         [[nodiscard]] static auto ContactGroup(std::int64_t group_id) -> MessageSegment;
+
+        /**
+         * @brief Build a JSON (card) segment.
+         * @param data Content of the card, a JSON document as a string.
+         * @return `{ "type": "json", "data": { "data": <data> } }`.
+         * @note NapCat passes `data` to QQ as the card's content as is.
+         */
+        [[nodiscard]] static auto Json(std::string data) -> MessageSegment;
     };
 
     /**

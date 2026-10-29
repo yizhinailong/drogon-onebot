@@ -88,6 +88,15 @@ DROGON_TEST(ContactSendsTypeAndIdAsString) {
     CHECK(group.data.size() == 2);
 }
 
+DROGON_TEST(JsonSendsDataAsString) {
+    auto const* const content{ R"({"app":"com.tencent.structmsg","meta":{"news":{"title":"hi"}}})" };
+    auto const card{ drogon_onebot::MessageSegment::Json(content) };
+    CHECK(card.type == "json");
+    CHECK(card.data["data"].isString());
+    CHECK(card.data["data"].asString() == content);
+    CHECK(card.data.size() == 1);
+}
+
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
     auto image{ drogon_onebot::MessageSegment::Image("https://example.com/a.png") };
     image.data["summary"] = "[picture]";

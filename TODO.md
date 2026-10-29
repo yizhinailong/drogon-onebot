@@ -66,7 +66,7 @@
 
 ## 消息段构造函数
 
-已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`、`Record`、`Video`、`ContactFriend`、`ContactGroup`。`shake`、`anonymous` 等是老版 QQ 的功能，加之前先确认 NapCat 是否还支持。
+已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`、`Record`、`Video`、`ContactFriend`、`ContactGroup`、`Json`。`shake`、`anonymous` 等是老版 QQ 的功能，加之前先确认 NapCat 是否还支持。
 
 - [x] `record`：语音
 - [x] `video`：短视频
@@ -82,7 +82,7 @@
 - [ ] `forward`：合并转发，只在收到的消息里出现，内容用 `get_forward_msg` 获取
 - [ ] `node`：合并转发节点，按 ID 引用或自定义。发送合并转发要用 NapCat 扩展 `send_group_forward_msg` 或 `send_private_forward_msg`。
 - [ ] `xml`：XML 消息
-- [ ] `json`：JSON 消息
+- [x] `json`：JSON 消息
 
 ## 事件字段
 
