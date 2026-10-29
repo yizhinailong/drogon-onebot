@@ -137,6 +137,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetMsg(GetMsgParams)` | `get_msg` | `MessageInfo`（`time`、`message_type`、`message_id`、`real_id`、`group_id`、`sender`、`message`、`raw_message`） |
 | `GetForwardMsg(GetForwardMsgParams)` | `get_forward_msg` | `ForwardMessage`（`messages`，每条是一个 `MessageInfo`） |
 | `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo`（`group_id`、`group_name`、`member_count`、`max_member_count`） |
+| `GetGroupList(GetGroupListParams)` | `get_group_list` | `std::vector<GroupInfo>` |
 | `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo`（`card`、`role`、`level`、`title` 及标准里的其他字段） |
 | `SetGroupKick(SetGroupKickParams)` | `set_group_kick` | 无（`Result<void>`） |
 | `SetGroupBan(SetGroupBanParams)` | `set_group_ban` | 无（`Result<void>`） |
@@ -161,7 +162,7 @@ NapCat 在这些动作上的行为：
 
 - `SendMsgParams` 的 `message_type`、`user_id`、`group_id` 只在设置了时才发送。不带 `message_type` 时，NapCat 的 `send_msg` 在设置了 `group_id` 时发到群里，否则发给 `user_id`。`message_type` 为 `private` 时，如果 `user_id` 不是好友，NapCat 通过 `group_id` 发临时会话。
 - `SendMsgParams` 的字段与 `MessageEvent` 对应，回调可以用同一种写法回复私聊和群消息：`bot.SendMsg({ .message_type = event.message_type, .user_id = event.user_id, .group_id = event.group_id, .message = reply })`。
-- `no_cache` 是 `std::optional<bool>`，只在设置了时才发送。不带 `no_cache` 时，NapCat 的 `get_group_member_info` 会跳过缓存、重新获取，尽管标准的默认值是 false。NapCat 的 `get_group_info` 忽略 `no_cache`。`GetFriendListParams::no_cache` 是 NapCat 的扩展，标准的 `get_friend_list` 没有参数。
+- `no_cache` 是 `std::optional<bool>`，只在设置了时才发送。不带 `no_cache` 时，NapCat 的 `get_group_member_info` 会跳过缓存、重新获取，尽管标准的默认值是 false。NapCat 的 `get_group_info` 忽略 `no_cache`。`GetFriendListParams::no_cache` 和 `GetGroupListParams::no_cache` 是 NapCat 的扩展，标准的 `get_friend_list` 和 `get_group_list` 没有参数。
 - NapCat 只在内存里保存消息 ID，默认 5000 条。对 NapCat 上次重启之前的 ID，`GetMsg`、`DeleteMsg` 和 `GetForwardMsg` 以 `Action` 失败。
 - `GetForwardMsg` 接受收到的 `forward` 消息段的 `id`。NapCat 上报的事件默认只带这个 `id`，转发的消息要用这个动作获取。
 - NapCat 对 `get_forward_msg` 返回 go-cqhttp 的 `messages`，每项是一条完整消息，形状与 `get_msg` 的相同，而不是标准里由 `node` 消息段组成的 `message`。`GetForwardMsg` 按 NapCat 的形状读取，遇到标准的形状时以 `ResponseValidation` 失败。

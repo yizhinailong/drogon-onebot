@@ -137,6 +137,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetMsg(GetMsgParams)` | `get_msg` | `MessageInfo` (`time`, `message_type`, `message_id`, `real_id`, `group_id`, `sender`, `message`, `raw_message`) |
 | `GetForwardMsg(GetForwardMsgParams)` | `get_forward_msg` | `ForwardMessage` (`messages`, each a `MessageInfo`) |
 | `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo` (`group_id`, `group_name`, `member_count`, `max_member_count`) |
+| `GetGroupList(GetGroupListParams)` | `get_group_list` | `std::vector<GroupInfo>` |
 | `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo` (`card`, `role`, `level`, `title`, and the other fields of the standard) |
 | `SetGroupKick(SetGroupKickParams)` | `set_group_kick` | Nothing (`Result<void>`) |
 | `SetGroupBan(SetGroupBanParams)` | `set_group_ban` | Nothing (`Result<void>`) |
@@ -161,7 +162,7 @@ NapCat's behavior with these actions:
 
 - `SendMsgParams` sends `message_type`, `user_id`, and `group_id` only when they are set. Without `message_type`, NapCat's `send_msg` sends to `group_id` when it is set and to `user_id` otherwise. With `private`, it sends to a `user_id` that is not a friend as a temporary chat through `group_id`.
 - `SendMsgParams` mirrors `MessageEvent`, so a callback can answer private and group messages alike: `bot.SendMsg({ .message_type = event.message_type, .user_id = event.user_id, .group_id = event.group_id, .message = reply })`.
-- `no_cache` is a `std::optional<bool>` and is sent only when set. When it is absent, NapCat's `get_group_member_info` skips its cache and fetches fresh data, although the standard's default is false. NapCat's `get_group_info` ignores `no_cache`. `GetFriendListParams::no_cache` is a NapCat extension; the standard's `get_friend_list` takes no parameters.
+- `no_cache` is a `std::optional<bool>` and is sent only when set. When it is absent, NapCat's `get_group_member_info` skips its cache and fetches fresh data, although the standard's default is false. NapCat's `get_group_info` ignores `no_cache`. `GetFriendListParams::no_cache` and `GetGroupListParams::no_cache` are NapCat extensions; the standard's `get_friend_list` and `get_group_list` take no parameters.
 - NapCat keeps message IDs in memory only, 5000 of them by default. `GetMsg`, `DeleteMsg`, and `GetForwardMsg` fail with `Action` for an ID from before NapCat's last restart.
 - `GetForwardMsg` takes the `id` of a received `forward` segment. NapCat reports events with only that `id` by default, so the forwarded messages come from this action.
 - NapCat answers `get_forward_msg` with go-cqhttp's `messages`, whole messages shaped like those of `get_msg`, instead of the standard's `message` of `node` segments. `GetForwardMsg` reads NapCat's shape and fails with `ResponseValidation` on the standard one.

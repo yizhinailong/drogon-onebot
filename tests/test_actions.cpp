@@ -200,6 +200,21 @@ namespace {
     }
 
     /**
+     * @brief Build NapCat's `get_group_list` data, plus the request body under `request` in each entry.
+     * @param request Body of the request, echoed so tests can check what was sent.
+     * @return `group_info()` of `TARGET_GROUP`, then a second group with its ID as a string.
+     */
+    auto group_list(Json::Value const& request) -> Json::Value {
+        auto other{ group_info(request) };
+        other["group_id"] = std::to_string(TARGET_GROUP + 1);
+        other["group_name"] = "other group";
+        Json::Value data{ Json::arrayValue };
+        data.append(group_info(request));
+        data.append(other);
+        return data;
+    }
+
+    /**
      * @brief Build NapCat's `get_group_member_info` data, plus the request body under `request`.
      * @param request Body of the request, echoed so tests can check what was sent.
      * @return Data of `TARGET_USER` in `TARGET_GROUP`.
@@ -527,6 +542,15 @@ namespace {
             Json::Value data{ Json::objectValue };
             data["group_id"] = TARGET_GROUP;
             return ok(data);
+        });
+        serve("/get_group_list", [](drogon::HttpRequestPtr const& req) { return ok(group_list(body_of(req))); });
+        serve("/bad/get_group_list", [](drogon::HttpRequestPtr const& req) {
+            auto data{ group_list(body_of(req)) };
+            data[1].removeMember("group_name");
+            return ok(data);
+        });
+        serve("/failing/get_group_list", [](auto const&) {
+            return envelope("failed", FAILED_RETCODE, Json::Value{}, "get group list failed");
         });
         serve("/get_group_member_info", [](drogon::HttpRequestPtr const& req) {
             if (body_of(req)["group_id"].asInt64() != TARGET_GROUP) {
@@ -971,6 +995,31 @@ DROGON_TEST(GetGroupInfoRejectsMissingName) {
     CHECK(info.error().message.contains("group_name"));
 }
 
+DROGON_TEST(GetGroupListReadsGroups) {
+    auto const groups{ drogon::sync_wait(plugin_bot().GetGroupList()) };
+    REQUIRE(groups.has_value());
+    REQUIRE(groups->size() == 2);
+    CHECK((*groups)[0].group_id == TARGET_GROUP);
+    CHECK((*groups)[0].group_name == "test group");
+    CHECK((*groups)[0].member_count == 42);
+    CHECK((*groups)[1].group_id == TARGET_GROUP + 1);
+    CHECK((*groups)[1].group_name == "other group");
+}
+
+DROGON_TEST(GetGroupListRejectsInvalidEntry) {
+    auto const groups{ drogon::sync_wait(bot_at("/bad").GetGroupList()) };
+    REQUIRE(!groups.has_value());
+    CHECK(groups.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(groups.error().message.contains("data[1].group_name is missing"));
+}
+
+DROGON_TEST(GetGroupListPassesActionError) {
+    auto const groups{ drogon::sync_wait(bot_at("/failing").GetGroupList()) };
+    REQUIRE(!groups.has_value());
+    CHECK(groups.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(groups.error().message.contains("get group list failed"));
+}
+
 DROGON_TEST(GetGroupMemberInfoReadsMember) {
     auto const info{
         drogon::sync_wait(plugin_bot().GetGroupMemberInfo({ .group_id = TARGET_GROUP, .user_id = TARGET_USER }))
@@ -1274,6 +1323,11 @@ DROGON_TEST(NoCacheIsSentOnlyWhenSet) {
     REQUIRE(fresh_friends.has_value());
     REQUIRE(!fresh_friends->empty());
     CHECK(fresh_friends->front().raw["request"]["no_cache"].asBool());
+
+    auto const fresh_groups{ drogon::sync_wait(plugin_bot().GetGroupList({ .no_cache = true })) };
+    REQUIRE(fresh_groups.has_value());
+    REQUIRE(!fresh_groups->empty());
+    CHECK(fresh_groups->front().raw["request"]["no_cache"].asBool());
 }
 
 auto main(int argc, char** argv) -> int {

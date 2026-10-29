@@ -22,14 +22,22 @@ namespace drogon_onebot {
     };
 
     /**
-     * @brief Group the bot account is in, from `get_group_info`.
+     * @brief Group the bot account is in, from `get_group_info` or `get_group_list`.
      */
     struct GroupInfo {
         std::int64_t group_id{};         ///< Group number.
         std::string group_name;          ///< Group name.
         std::int32_t member_count{};     ///< Current number of members; 0 when absent.
         std::int32_t max_member_count{}; ///< Largest number of members the group allows; 0 when absent.
-        Json::Value raw;                 ///< Whole `data` as received, for fields without a member here, e.g. NapCat's `group_remark`.
+        Json::Value raw;                 ///< Whole `data`, or list entry, as received, for fields without a member here, e.g. NapCat's `group_remark`.
+    };
+
+    /**
+     * @brief Arguments of `OneBot::GetGroupList()`.
+     */
+    struct GetGroupListParams {
+        std::optional<bool> no_cache; ///< Whether to skip the implementation's cache, a NapCat extension; empty sends none.
+        double timeout{ 30.0 };       ///< Seconds to wait for the response; 0 waits forever.
     };
 
     /**

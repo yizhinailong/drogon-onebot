@@ -3,12 +3,39 @@
  * @brief Implement the group actions of `OneBot`.
  */
 #include <cstdint>
+#include <expected>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "details/field_reader.hpp"
 #include "details/json.hpp"
 #include "details/transport.hpp"
 #include "drogon_onebot/onebot_client.hpp"
+
+namespace {
+
+    /**
+     * @brief Read a group object of the shape that `get_group_info` returns.
+     * @param data Object to read; also an entry of the `get_group_list` result.
+     * @return The group, or the first problem found, e.g. `group_name is missing`.
+     */
+    auto to_group_info(Json::Value const& data) -> std::expected<drogon_onebot::GroupInfo, std::string> {
+        drogon_onebot::details::FieldReader fields{ data };
+        drogon_onebot::GroupInfo info{
+            .group_id = fields.RequiredInteger<std::int64_t>("group_id"),
+            .group_name = fields.RequiredString("group_name"),
+            .member_count = fields.Integer<std::int32_t>("member_count").value_or(0),
+            .max_member_count = fields.Integer<std::int32_t>("max_member_count").value_or(0),
+            .raw = data,
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return info;
+    }
+
+} // namespace
 
 namespace drogon_onebot {
 
@@ -31,18 +58,36 @@ namespace drogon_onebot {
         if (!data) {
             co_return std::unexpected{ data.error() };
         }
-        details::FieldReader fields{ *data };
-        GroupInfo info{
-            .group_id = fields.RequiredInteger<std::int64_t>("group_id"),
-            .group_name = fields.RequiredString("group_name"),
-            .member_count = fields.Integer<std::int32_t>("member_count").value_or(0),
-            .max_member_count = fields.Integer<std::int32_t>("max_member_count").value_or(0),
-            .raw = *data,
-        };
-        if (!fields.Problem().empty()) {
-            co_return std::unexpected{ details::invalid_data_error("get_group_info", fields.Problem(), *data) };
+        auto info{ to_group_info(*data) };
+        if (!info) {
+            co_return std::unexpected{ details::invalid_data_error("get_group_info", info.error(), *data) };
         }
-        co_return info;
+        co_return std::move(*info);
+    }
+
+    /**
+     * @brief Call `get_group_list`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the groups the bot account is in, or why the action failed.
+     */
+    auto OneBot::GetGroupList(
+        GetGroupListParams params
+    ) const -> drogon::Task<Result<std::vector<GroupInfo>>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        if (params.no_cache) {
+            body["no_cache"] = *params.no_cache;
+        }
+        auto const data{ co_await transport->Call("get_group_list", std::move(body), params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        auto groups{ details::read_array<GroupInfo>(*data, "data", to_group_info) };
+        if (!groups) {
+            co_return std::unexpected{ details::invalid_data_error("get_group_list", groups.error(), *data) };
+        }
+        co_return std::move(*groups);
     }
 
     /**
