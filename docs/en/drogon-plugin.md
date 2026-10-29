@@ -323,6 +323,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 - `set_group_anonymous` and `set_group_anonymous_ban` have no typed method, because NapCat does not register them.
 - `shake`, `anonymous`, `share`, `poke`, `xml`, `location`, and custom `music` have no `MessageSegment` function, because NapCat cannot send them. It rejects `shake`, `anonymous`, `share`, and custom `music`, drops `poke` and `xml`, and sends `location` without its coordinates. For other implementations, build them through `type` and `data`. NapCat pokes through its own actions, such as `group_poke`, which `CallAction` reaches.
 - For notice, request, and meta events, only the common fields and the subtypes are typed. Read the other fields from `raw`.
+- `MessageEvent::anonymous`, the `Sender` fields `sex`, `age`, `area`, `level`, and `title`, and the `notify` notices `lucky_king` and `honor` have no typed member, because NapCat never sends them. For other implementations, read them from `raw`.
 
 ## Tests
 

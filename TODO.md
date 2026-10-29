@@ -81,11 +81,6 @@
 
 ## 事件字段
 
-消息事件：
-
-- [ ] `MessageEvent::anonymous`：匿名信息（`id`、`name`、`flag`）
-- [ ] `Sender` 补上 `sex`、`age`，以及群消息里的 `area`、`level`、`title`
-
 通知事件，现在只有 `notice_type` 和 `sub_type` 是类型化的：
 
 - [ ] `group_upload`：群文件上传，`group_id`、`user_id`、`file`
@@ -97,8 +92,6 @@
 - [ ] `group_recall`：群消息撤回，`group_id`、`user_id`、`operator_id`、`message_id`
 - [ ] `friend_recall`：好友消息撤回，`user_id`、`message_id`
 - [ ] `notify` 的 `poke`：戳一戳，`group_id`、`user_id`、`target_id`
-- [ ] `notify` 的 `lucky_king`：红包运气王，`group_id`、`user_id`、`target_id`
-- [ ] `notify` 的 `honor`：群荣誉变更，`group_id`、`honor_type`、`user_id`
 
 请求事件：
 

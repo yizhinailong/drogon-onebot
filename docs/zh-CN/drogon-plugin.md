@@ -323,6 +323,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 - `set_group_anonymous` 和 `set_group_anonymous_ban` 没有类型化方法，因为 NapCat 没有注册这两个动作。
 - `shake`、`anonymous`、`share`、`poke`、`xml`、`location` 和自定义 `music` 没有 `MessageSegment` 函数，因为 NapCat 发不出这些消息段：它拒绝 `shake`、`anonymous`、`share` 和自定义 `music`，丢弃 `poke` 和 `xml`，发送 `location` 时不带坐标。其他实现可以通过 `type` 和 `data` 构造。NapCat 用自己的动作戳一戳，例如 `group_poke`，可以通过 `CallAction` 调用。
 - 通知、请求、元事件只有公共字段和子类型是类型化的，其余字段从 `raw` 读取。
+- `MessageEvent::anonymous`，`Sender` 的 `sex`、`age`、`area`、`level`、`title`，以及 `notify` 通知里的 `lucky_king` 和 `honor` 没有类型化成员，因为 NapCat 从不发送它们。其他实现发送的这些字段从 `raw` 读取。
 
 ## 测试
 

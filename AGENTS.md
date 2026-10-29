@@ -98,6 +98,7 @@ Drogon plugin library for the OneBot v11 protocol, consumed by other Drogon apps
   - Unknown `post_type` values, such as NapCat's `message_sent`, get 204 and are dropped.
 - Dispatch is by `post_type`: `OnMessage`, `OnNotice`, `OnRequest`, and `OnMetaEvent` (aiocqhttp's names) append to per-type handler lists.
   - `MessageEvent` has typed fields. The other three have only `time`, `self_id`, their type, `sub_type`, and the whole event in `raw`.
+  - NapCat never sends `MessageEvent`'s `anonymous`, or `sub_type` `anonymous`, because QQ NT has no anonymous chat. Its `sender` holds only `user_id`, `nickname`, `card`, and, in groups, `role` (`napcat-onebot/api/msg.ts:1139-1173`), in events, `get_msg`, and `get_forward_msg` alike. It emits no `notify` notice with `sub_type` `lucky_king` or `honor`; no source under `napcat-onebot/` names them. They get no typed member, by decision; `raw` keeps whatever another implementation sends.
   - Each handler gets its own `drogon::async_run` task. The task's lambda copies the handler and the event, and `async_run` moves that lambda into its coroutine frame (`coroutine.h:749-762`), so a handler's captures outlive the request.
   - The task catches and logs exceptions, because an exception escaping an `AsyncTask` calls `std::terminate` (`coroutine.h:397-401`).
 - Handlers must be registered before the listeners start: in a beginning advice, or in `initAndStart` of a plugin that lists this one under `dependencies`. The lists are read from IO threads without a lock. `On*` logs a warning when `event_path` is not set.
