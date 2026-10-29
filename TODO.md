@@ -1,0 +1,117 @@
+# TODO
+
+尚未支持的 OneBot v11 功能，全部实现后删除本文件。
+
+未类型化的动作现在可以用 `CallAction` 调用，未类型化的事件字段可以从 `raw` 读取。实现前先对照 NapCat 源码确认实际行为。
+
+## 通信方式
+
+> 先不实现，先确保 HTTP 格式下所有的功能已经实现
+
+- [ ] 正向 WebSocket
+- [ ] 反向 WebSocket
+- [ ] 消息的字符串格式（CQ 码）和 `auto_escape`
+- [ ] 快速操作（在上报的响应体里返回 `reply` 等）。现在的事件路由先回 204、再运行回调，这个设计排除了快速操作。
+
+## 动作
+
+消息：
+
+- [ ] `send_msg`：按 `message_type` 发送私聊或群消息
+- [ ] `get_forward_msg`：获取合并转发的内容
+- [ ] `send_like`：点赞
+
+群管理：
+
+- [ ] `set_group_kick`：踢出成员
+- [ ] `set_group_ban`：禁言成员
+- [ ] `set_group_anonymous_ban`：禁言匿名成员
+- [ ] `set_group_whole_ban`：全员禁言
+- [ ] `set_group_admin`：设置管理员
+- [ ] `set_group_anonymous`：开关匿名聊天
+- [ ] `set_group_card`：设置群名片
+- [ ] `set_group_name`：设置群名
+- [ ] `set_group_leave`：退群或解散群
+- [ ] `set_group_special_title`：设置专属头衔
+
+请求处理：
+
+- [ ] `set_friend_add_request`：处理好友申请
+- [ ] `set_group_add_request`：处理加群申请和邀请
+
+信息查询：
+
+- [ ] `get_friend_list`：好友列表
+- [ ] `get_group_list`：群列表
+- [ ] `get_group_member_list`：群成员列表
+- [ ] `get_group_honor_info`：群荣誉信息
+
+凭证：
+
+- [ ] `get_cookies`
+- [ ] `get_csrf_token`
+- [ ] `get_credentials`
+
+文件和能力：
+
+- [ ] `get_record`：获取语音文件
+- [ ] `get_image`：获取图片文件
+- [ ] `can_send_image`
+- [ ] `can_send_record`
+
+实现状态：
+
+- [ ] `get_status`：运行状态
+- [ ] `get_version_info`：版本信息
+- [ ] `set_restart`：重启实现
+- [ ] `clean_cache`：清理缓存
+
+## 消息段构造函数
+
+已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`。`shake`、`anonymous` 等是老版 QQ 的功能，加之前先确认 NapCat 是否还支持。
+
+- [ ] `record`：语音
+- [ ] `video`：短视频
+- [ ] `rps`：猜拳
+- [ ] `dice`：掷骰子
+- [ ] `shake`：窗口抖动
+- [ ] `poke`：戳一戳
+- [ ] `anonymous`：匿名发消息
+- [ ] `share`：链接分享
+- [ ] `contact`：推荐好友或群
+- [ ] `location`：位置
+- [ ] `music`：音乐分享，含自定义音乐
+- [ ] `forward`：合并转发，只在收到的消息里出现，内容用 `get_forward_msg` 获取
+- [ ] `node`：合并转发节点，按 ID 引用或自定义。发送合并转发要用 NapCat 扩展 `send_group_forward_msg` 或 `send_private_forward_msg`。
+- [ ] `xml`：XML 消息
+- [ ] `json`：JSON 消息
+
+## 事件字段
+
+消息事件：
+
+- [ ] `MessageEvent::anonymous`：匿名信息（`id`、`name`、`flag`）
+- [ ] `Sender` 补上 `sex`、`age`，以及群消息里的 `area`、`level`、`title`
+
+通知事件，现在只有 `notice_type` 和 `sub_type` 是类型化的：
+
+- [ ] `group_upload`：群文件上传，`group_id`、`user_id`、`file`
+- [ ] `group_admin`：管理员变动，`group_id`、`user_id`
+- [ ] `group_decrease`：成员减少，`group_id`、`operator_id`、`user_id`
+- [ ] `group_increase`：成员增加，`group_id`、`operator_id`、`user_id`
+- [ ] `group_ban`：禁言，`group_id`、`operator_id`、`user_id`、`duration`
+- [ ] `friend_add`：新好友，`user_id`
+- [ ] `group_recall`：群消息撤回，`group_id`、`user_id`、`operator_id`、`message_id`
+- [ ] `friend_recall`：好友消息撤回，`user_id`、`message_id`
+- [ ] `notify` 的 `poke`：戳一戳，`group_id`、`user_id`、`target_id`
+- [ ] `notify` 的 `lucky_king`：红包运气王，`group_id`、`user_id`、`target_id`
+- [ ] `notify` 的 `honor`：群荣誉变更，`group_id`、`honor_type`、`user_id`
+
+请求事件：
+
+- [ ] `friend`：`user_id`、`comment`、`flag`
+- [ ] `group`：`group_id`、`user_id`、`comment`、`flag`
+
+元事件：
+
+- [ ] `heartbeat`：`status`、`interval`
