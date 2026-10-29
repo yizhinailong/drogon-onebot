@@ -264,7 +264,7 @@ if (!sent) {
 | 方法 | `post_type` | 事件类型 | 带类型的字段 |
 |---|---|---|---|
 | `OnMessage(MessageHandler)` | `message` | `MessageEvent` | `message_type`、`sub_type`、`message_id`、`user_id`、`group_id`（仅群消息）、`message`、`raw_message`、`font`、`sender` |
-| `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`、`sub_type` |
+| `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`、`sub_type`、`detail`（见“通知详情”） |
 | `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`、`sub_type` |
 | `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`、`sub_type` |
 
@@ -272,6 +272,25 @@ if (!sent) {
 - 回调类型是 `std::function<drogon::Task<>(Event)>`。
 - 其他 `post_type`，例如开启 `reportSelfMessage` 后 NapCat 上报的 `message_sent`，回 204 后丢弃。
 - NapCat 有时把 `user_id`、`group_id` 发成字符串，解析时按数字读取。
+
+### 通知详情
+
+`NoticeEvent::detail` 以 `std::variant`（`NoticeDetail`）保存下表各类通知的专有字段，每类通知一个结构体。其他通知，例如 NapCat 的 `group_card`、`essence`，在这里是 `std::monostate`，字段从 `raw` 读取。
+
+| `notice_type` | `detail` | 字段 |
+|---|---|---|
+| `group_upload` | `GroupUploadNotice` | `group_id`、`user_id`、`file`（`id`、`name`、`size`、`busid`） |
+
+```cpp
+plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
+    if (auto const* upload{ std::get_if<drogon_onebot::GroupUploadNotice>(&event.detail) }) {
+        LOG_INFO << upload->user_id << " uploaded " << upload->file.name;
+    }
+    co_return;
+});
+```
+
+- 表中字段是必需的，只有文件的 `size` 和 `busid` 可以缺省，读作 0。所列类型的通知缺少必需字段或字段类型不对时返回 400，回调不运行。
 
 ### 路由的应答
 
@@ -322,7 +341,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 - 类型化动作见“调用动作”一节的表格，其余动作先用 `CallAction`。
 - `set_group_anonymous` 和 `set_group_anonymous_ban` 没有类型化方法，因为 NapCat 没有注册这两个动作。
 - `shake`、`anonymous`、`share`、`poke`、`xml`、`location` 和自定义 `music` 没有 `MessageSegment` 函数，因为 NapCat 发不出这些消息段：它拒绝 `shake`、`anonymous`、`share` 和自定义 `music`，丢弃 `poke` 和 `xml`，发送 `location` 时不带坐标。其他实现可以通过 `type` 和 `data` 构造。NapCat 用自己的动作戳一戳，例如 `group_poke`，可以通过 `CallAction` 调用。
-- 通知、请求、元事件只有公共字段和子类型是类型化的，其余字段从 `raw` 读取。
+- 只有“通知详情”里列出的通知有自己的类型化字段。其他通知，以及请求、元事件，只有公共字段和子类型是类型化的，其余字段从 `raw` 读取。
 - `MessageEvent::anonymous`，`Sender` 的 `sex`、`age`、`area`、`level`、`title`，以及 `notify` 通知里的 `lucky_king` 和 `honor` 没有类型化成员，因为 NapCat 从不发送它们。其他实现发送的这些字段从 `raw` 读取。
 
 ## 测试
@@ -339,6 +358,6 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 |---|---|
 | `test_config` | 不启动 app，直接调用 `initAndStart`：必填项、两个 `_env` 的读取与报错、`event_path` 校验，以及仓库里的 config.json 能通过校验。 |
 | `test_actions` | 假的 NapCat HTTP API。`CallAction` 的请求体、`Authorization`、`base_url` 路径前缀；`async`；全部五种 `ErrorKind`（`failed`、只有 `wording`、404、403、非 JSON、无 `status`、未知 `status`、超时、连接失败）；类型化动作在 NapCat 形状的 `data` 下成功、`data` 缺字段或字段类型不对、`Action` 错误，以及 `no_cache` 和 `send_msg` 的目标只在设置时发送。 |
-| `test_events` | 带签名的事件路由。RFC 2202 向量校验测试自带的 HMAC；用 Python 独立算出的 NapCat 签名；大写签名；字符串 ID 的群消息；401、403、400 各种拒收且回调不运行；四种事件的分发；丢弃 `message_sent`；多个回调都运行；回调抛异常后服务继续；应答不等慢回调。 |
+| `test_events` | 带签名的事件路由。RFC 2202 向量校验测试自带的 HMAC；用 Python 独立算出的 NapCat 签名；大写签名；字符串 ID 的群消息；401、403、400 各种拒收且回调不运行；四种事件的分发；类型化的通知详情，以及缺少类型字段的通知；丢弃 `message_sent`；多个回调都运行；回调抛异常后服务继续；应答不等慢回调。 |
 | `test_events_unsigned` | 去掉 `secret_env` 的事件路由：接受无签名事件，忽略任意 `X-Signature`。 |
 | `test_segments` | 不启动 app：每个 `MessageSegment` 函数构造的消息段，包括以字符串发送的 ID，以及混合构造和手写消息段的消息。 |

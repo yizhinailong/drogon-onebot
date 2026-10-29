@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <variant>
 
 #include <json/value.h>
 
@@ -33,13 +34,47 @@ namespace drogon_onebot {
     };
 
     /**
+     * @brief File of a `group_upload` notice.
+     */
+    struct GroupUploadFile {
+        std::string id;       ///< File ID.
+        std::string name;     ///< File name.
+        std::int64_t size{};  ///< Size in bytes.
+        std::int64_t busid{}; ///< Business ID of the file; 0 when absent.
+    };
+
+    /**
+     * @brief Fields of a `group_upload` notice: a member uploaded a group file.
+     */
+    struct GroupUploadNotice {
+        std::int64_t group_id{}; ///< Group number.
+        std::int64_t user_id{};  ///< QQ number of the member who uploaded the file.
+        GroupUploadFile file;    ///< The uploaded file.
+    };
+
+    /**
+     * @brief Type-specific fields of a notice, chosen by its `notice_type` and `sub_type`.
+     *
+     * `std::monostate` for any other notice, such as NapCat's extensions, whose fields stay in `NoticeEvent::raw`.
+     */
+    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice>;
+
+    /**
      * @brief Event with `post_type` `notice`, e.g. a group member joining or a message being recalled.
+     *
+     * Read the type-specific fields from `detail`:
+     * @code
+     * if (auto const* upload{ std::get_if<drogon_onebot::GroupUploadNotice>(&event.detail) }) {
+     *     LOG_INFO << upload->user_id << " uploaded " << upload->file.name;
+     * }
+     * @endcode
      */
     struct NoticeEvent {
         std::int64_t time{};     ///< Unix time in seconds when the event happened.
         std::int64_t self_id{};  ///< QQ number of the bot account that received the event.
         std::string notice_type; ///< e.g. `group_increase`, `group_recall`, or `notify`.
         std::string sub_type;    ///< Subtype within `notice_type`, e.g. `approve` or `poke`; empty when the type has none.
+        NoticeDetail detail;     ///< Type-specific fields; `std::monostate` for a notice without a type in `NoticeDetail`.
         Json::Value raw;         ///< Whole event as received, including the type-specific fields.
     };
 

@@ -14,6 +14,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 #include <drogon/drogon.h>
 #include <drogon/drogon_test.h>
@@ -142,6 +143,27 @@ namespace {
      */
     auto no_message_received() -> bool {
         return !g_messages.Pop(test_support::NO_EVENT_WAIT).has_value();
+    }
+
+    /**
+     * @brief Check that the notice handler received nothing.
+     * @return True if no notice event arrived within `NO_EVENT_WAIT`.
+     */
+    auto no_notice_received() -> bool {
+        return !g_notices.Pop(test_support::NO_EVENT_WAIT).has_value();
+    }
+
+    /**
+     * @brief Build a notice that NapCat would post for a group.
+     * @param notice_type The notice's `notice_type`.
+     * @return Notice in group 30003 about user 20002.
+     */
+    auto group_notice(char const* notice_type) -> Json::Value {
+        auto event{ base_event("notice") };
+        event["notice_type"] = notice_type;
+        event["group_id"] = 30003;
+        event["user_id"] = 20002;
+        return event;
     }
 
     /**
@@ -304,18 +326,17 @@ DROGON_TEST(RejectsMalformedEvents) {
 }
 
 DROGON_TEST(DispatchesNoticeRequestAndMetaEvents) {
-    auto notice_json{ base_event("notice") };
-    notice_json["notice_type"] = "group_increase";
-    notice_json["sub_type"] = "approve";
-    notice_json["group_id"] = 30003;
-    notice_json["user_id"] = 20002;
+    auto notice_json{ group_notice("group_card") };
+    notice_json["card_new"] = "alice";
+    notice_json["card_old"] = "";
     CHECK(post_signed(notice_json)->getStatusCode() == drogon::k204NoContent);
     auto const notice{ g_notices.Pop(test_support::EVENT_WAIT) };
     REQUIRE(notice.has_value());
-    CHECK(notice->notice_type == "group_increase");
-    CHECK(notice->sub_type == "approve");
+    CHECK(notice->notice_type == "group_card");
+    CHECK(notice->sub_type.empty());
     CHECK(notice->self_id == 10001);
-    CHECK(notice->raw["group_id"].asInt64() == 30003);
+    CHECK(std::holds_alternative<std::monostate>(notice->detail));
+    CHECK(notice->raw["card_new"].asString() == "alice");
 
     auto request_json{ base_event("request") };
     request_json["request_type"] = "friend";
@@ -341,6 +362,34 @@ DROGON_TEST(DispatchesNoticeRequestAndMetaEvents) {
 
     auto no_type{ base_event("notice") };
     CHECK(post_signed(no_type)->getStatusCode() == drogon::k400BadRequest);
+}
+
+DROGON_TEST(ParsesGroupUploadNotice) {
+    auto upload_json{ group_notice("group_upload") };
+    upload_json["file"]["id"] = "Ae7bVzY2Pq";
+    upload_json["file"]["name"] = "report.pdf";
+    upload_json["file"]["size"] = 1048576;
+    upload_json["file"]["busid"] = 102;
+    CHECK(post_signed(upload_json)->getStatusCode() == drogon::k204NoContent);
+    auto const notice{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(notice.has_value());
+    auto const* const upload{ std::get_if<drogon_onebot::GroupUploadNotice>(&notice->detail) };
+    REQUIRE(upload != nullptr);
+    CHECK(upload->group_id == 30003);
+    CHECK(upload->user_id == 20002);
+    CHECK(upload->file.id == "Ae7bVzY2Pq");
+    CHECK(upload->file.name == "report.pdf");
+    CHECK(upload->file.size == 1048576);
+    CHECK(upload->file.busid == 102);
+}
+
+DROGON_TEST(RejectsNoticeWithoutTypedField) {
+    auto upload_json{ group_notice("group_upload") };
+    upload_json["file"]["id"] = "Ae7bVzY2Pq";
+    auto const response{ post_signed(upload_json) };
+    CHECK(response->getStatusCode() == drogon::k400BadRequest);
+    CHECK(std::string{ response->body() }.contains("file.name is missing"));
+    CHECK(no_notice_received());
 }
 
 DROGON_TEST(DropsUnknownPostType) {

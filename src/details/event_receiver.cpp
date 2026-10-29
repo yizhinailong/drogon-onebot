@@ -188,6 +188,52 @@ namespace {
     }
 
     /**
+     * @brief Read the fields of a `group_upload` notice.
+     * @param root Notice object.
+     * @return The fields, or the first problem found, e.g. `file.name is missing`.
+     */
+    auto to_group_upload_notice(
+        Json::Value const& root
+    ) -> std::expected<drogon_onebot::GroupUploadNotice, std::string> {
+        FieldReader fields{ root };
+        FieldReader file{ drogon_onebot::details::member(root, "file") };
+        drogon_onebot::GroupUploadNotice notice{
+            .group_id = fields.RequiredInteger<std::int64_t>("group_id"),
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .file = drogon_onebot::GroupUploadFile{
+                .id = file.RequiredString("id"),
+                .name = file.RequiredString("name"),
+                .size = file.Integer<std::int64_t>("size").value_or(0),
+                .busid = file.Integer<std::int64_t>("busid").value_or(0),
+            },
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        if (!file.Problem().empty()) {
+            return std::unexpected{ "file." + file.Problem() };
+        }
+        return notice;
+    }
+
+    /**
+     * @brief Read the type-specific fields of a notice.
+     * @param root Notice object.
+     * @param notice_type The notice's `notice_type`.
+     * @return The fields of a notice type in `NoticeDetail`, `std::monostate` for any other
+     * notice, or the first problem found.
+     */
+    auto read_notice_detail(
+        Json::Value const& root,
+        std::string_view notice_type
+    ) -> std::expected<drogon_onebot::NoticeDetail, std::string> {
+        if (notice_type == "group_upload") {
+            return to_group_upload_notice(root);
+        }
+        return drogon_onebot::NoticeDetail{};
+    }
+
+    /**
      * @brief Parse an event whose `post_type` is `notice`.
      * @param root Event object.
      * @return The event, or why it is not a valid notice event.
@@ -203,6 +249,11 @@ namespace {
             .sub_type = fields.String("sub_type"),
             .raw = root,
         };
+        auto detail{ read_notice_detail(root, event.notice_type) };
+        if (fields.Problem().empty() && !detail) {
+            return std::unexpected{ std::format("notice event: {}", detail.error()) };
+        }
+        event.detail = std::move(detail).value_or(drogon_onebot::NoticeDetail{});
         return finish(fields, "notice", std::move(event));
     }
 

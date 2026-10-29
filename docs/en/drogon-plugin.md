@@ -264,7 +264,7 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 | Method | `post_type` | Event type | Typed fields |
 |---|---|---|---|
 | `OnMessage(MessageHandler)` | `message` | `MessageEvent` | `message_type`, `sub_type`, `message_id`, `user_id`, `group_id` (group messages only), `message`, `raw_message`, `font`, `sender` |
-| `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`, `sub_type` |
+| `OnNotice(NoticeHandler)` | `notice` | `NoticeEvent` | `notice_type`, `sub_type`, `detail` (see "Notice details") |
 | `OnRequest(RequestHandler)` | `request` | `RequestEvent` | `request_type`, `sub_type` |
 | `OnMetaEvent(MetaEventHandler)` | `meta_event` | `MetaEvent` | `meta_event_type`, `sub_type` |
 
@@ -272,6 +272,25 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 - The callback type is `std::function<drogon::Task<>(Event)>`.
 - Other `post_type` values, such as the `message_sent` that NapCat reports when `reportSelfMessage` is on, get 204 and are dropped.
 - NapCat sometimes sends `user_id` and `group_id` as strings. They are parsed as numbers.
+
+### Notice details
+
+`NoticeEvent::detail` holds the type-specific fields of the notices below, as one struct per type in the `std::variant` `NoticeDetail`. Any other notice, such as NapCat's `group_card` or `essence`, has `std::monostate` there; read its fields from `raw`.
+
+| `notice_type` | `detail` | Fields |
+|---|---|---|
+| `group_upload` | `GroupUploadNotice` | `group_id`, `user_id`, `file` (`id`, `name`, `size`, `busid`) |
+
+```cpp
+plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
+    if (auto const* upload{ std::get_if<drogon_onebot::GroupUploadNotice>(&event.detail) }) {
+        LOG_INFO << upload->user_id << " uploaded " << upload->file.name;
+    }
+    co_return;
+});
+```
+
+- The fields in the table are required, except a file's `size` and `busid`, which read as 0. A notice of a listed type that misses a required field, or has a field of the wrong type, gets 400, and no callback runs.
 
 ### Route responses
 
@@ -322,7 +341,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 - The typed actions are listed in the table under "Calling actions". Use `CallAction` for the other actions for now.
 - `set_group_anonymous` and `set_group_anonymous_ban` have no typed method, because NapCat does not register them.
 - `shake`, `anonymous`, `share`, `poke`, `xml`, `location`, and custom `music` have no `MessageSegment` function, because NapCat cannot send them. It rejects `shake`, `anonymous`, `share`, and custom `music`, drops `poke` and `xml`, and sends `location` without its coordinates. For other implementations, build them through `type` and `data`. NapCat pokes through its own actions, such as `group_poke`, which `CallAction` reaches.
-- For notice, request, and meta events, only the common fields and the subtypes are typed. Read the other fields from `raw`.
+- Only the notices under "Notice details" have typed fields of their own. For the other notices, and for request and meta events, only the common fields and the subtypes are typed. Read the other fields from `raw`.
 - `MessageEvent::anonymous`, the `Sender` fields `sex`, `age`, `area`, `level`, and `title`, and the `notify` notices `lucky_king` and `honor` have no typed member, because NapCat never sends them. For other implementations, read them from `raw`.
 
 ## Tests
@@ -339,6 +358,6 @@ All tests run offline. The tests that need a server use the same app as a stand-
 |---|---|
 | `test_config` | Calls `initAndStart` directly without starting the app: the required key, reading both `_env` keys and their errors, `event_path` validation, and that the config.json in the repository passes validation. |
 | `test_actions` | A fake NapCat HTTP API. `CallAction`'s request body, `Authorization`, and `base_url` path prefix; `async`; all five `ErrorKind`s (`failed`, `wording` only, 404, 403, non-JSON, no `status`, unknown `status`, timeout, connection failure); and for the typed actions, success with `data` shaped like NapCat's, missing or mistyped `data` fields, `Action` errors, and `no_cache` and the `send_msg` targets being sent only when set. |
-| `test_events` | The signed event route. RFC 2202 vectors check the test's own HMAC; a NapCat signature computed independently with Python; uppercase signatures; a group message with string IDs; the 401, 403, and 400 rejections, with no callback run; dispatch of all four event types; `message_sent` dropped; several callbacks all run; the service continuing after a callback throws; the response not waiting for a slow callback. |
+| `test_events` | The signed event route. RFC 2202 vectors check the test's own HMAC; a NapCat signature computed independently with Python; uppercase signatures; a group message with string IDs; the 401, 403, and 400 rejections, with no callback run; dispatch of all four event types; typed notice details, and a notice missing a typed field; `message_sent` dropped; several callbacks all run; the service continuing after a callback throws; the response not waiting for a slow callback. |
 | `test_events_unsigned` | The event route without `secret_env`: unsigned events are accepted, and any `X-Signature` is ignored. |
 | `test_segments` | Without starting the app: the segments that each `MessageSegment` function builds, including IDs sent as strings, and a message that mixes built and hand-written segments. |
