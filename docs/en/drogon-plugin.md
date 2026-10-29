@@ -156,10 +156,11 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 | `GetCredentials(GetCredentialsParams)` | `get_credentials` | `Credentials` (`cookies`, `csrf_token`) |
 | `GetRecord(GetRecordParams)` | `get_record` | `FileInfo` (`file`) |
 | `GetImage(GetImageParams)` | `get_image` | `FileInfo` (`file`) |
+| `CanSendImage(CanSendImageParams)` | `can_send_image` | `CanSend` (`yes`) |
 
 How typed actions read `data`:
 
-- The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, `messages`, `cookies`, `token`, `csrf_token`, `file`, and `sender.user_id`, depending on the action.
+- The IDs and the main name or content fields are required: `user_id`, `group_id`, `nickname`, `group_name`, `message_type`, `message_id`, `message`, `messages`, `cookies`, `token`, `csrf_token`, `file`, `yes`, and `sender.user_id`, depending on the action.
 - When a required field is missing or null, or any field has the wrong type (including the null `data` of `async`), the action returns a `ResponseValidation` error whose `body` is that `data`. For the list actions, the error names the entry, for example `data[1].nickname is missing`.
 - Other fields read as empty, 0, or false when the implementation leaves them out.
 - Integer fields accept both JSON numbers and decimal strings.
@@ -193,6 +194,7 @@ NapCat's behavior with these actions:
 - `GetImage` takes the `file` of a received `image` segment. NapCat downloads the image and answers with `base64` only when its `enableLocalFile2Url` setting is on, which it is not by default. Its `url` is the image's URL at QQ when NapCat can get one, and the path otherwise.
 - `FileInfo::file` is a path on NapCat's host. When NapCat runs in a container, read the content from `base64` instead, or download the image from `url`.
 - NapCat looks `file` up among the media of the messages it has received, kept in memory until a day after their last use, and otherwise searches QQ's file assistant by that name. It fails with `Action` when neither has the file.
+- NapCat's `can_send_image` always answers `yes`.
 
 ### Message segments
 

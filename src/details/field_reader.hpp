@@ -94,6 +94,13 @@ namespace drogon_onebot::details {
         [[nodiscard]] auto Bool(char const* key) -> bool;
 
         /**
+         * @brief Read a required boolean member.
+         * @param key Member name.
+         * @return The boolean, or false after recording a problem.
+         */
+        [[nodiscard]] auto RequiredBool(char const* key) -> bool;
+
+        /**
          * @brief Read a required message member in array format.
          * @param key Member name.
          * @return The segments, or none after recording a problem.

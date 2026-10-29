@@ -841,6 +841,17 @@ namespace {
             data["file"] = 1;
             return ok(data);
         });
+        serve("/can_send_image", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["yes"] = true;
+            return ok(data);
+        });
+        serve("/unable/can_send_image", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["yes"] = false;
+            return ok(data);
+        });
+        serve("/bad/can_send_image", [](auto const&) { return ok(Json::Value{ Json::objectValue }); });
         drogon::app().registerHandler(
             "/slow",
             [](drogon::HttpRequestPtr /*req*/) -> drogon::Task<drogon::HttpResponsePtr> {
@@ -1728,6 +1739,23 @@ DROGON_TEST(GetImagePassesActionError) {
     REQUIRE(!image.has_value());
     CHECK(image.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(image.error().message.contains("file not found"));
+}
+
+DROGON_TEST(CanSendImageReadsAnswer) {
+    auto const able{ drogon::sync_wait(plugin_bot().CanSendImage()) };
+    REQUIRE(able.has_value());
+    CHECK(able->yes);
+
+    auto const unable{ drogon::sync_wait(bot_at("/unable").CanSendImage()) };
+    REQUIRE(unable.has_value());
+    CHECK(!unable->yes);
+}
+
+DROGON_TEST(CanSendImageRejectsMissingAnswer) {
+    auto const able{ drogon::sync_wait(bot_at("/bad").CanSendImage()) };
+    REQUIRE(!able.has_value());
+    CHECK(able.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(able.error().message.contains("yes is missing"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

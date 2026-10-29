@@ -54,7 +54,7 @@
 
 - [x] `get_record`：获取语音文件
 - [x] `get_image`：获取图片文件
-- [ ] `can_send_image`
+- [x] `can_send_image`
 - [ ] `can_send_record`
 
 实现状态：

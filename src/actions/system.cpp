@@ -1,0 +1,57 @@
+/**
+ * @file system.cpp
+ * @brief Implement the actions of `OneBot` about the OneBot implementation itself.
+ */
+#include <expected>
+#include <string>
+
+#include "details/field_reader.hpp"
+#include "details/json.hpp"
+#include "details/transport.hpp"
+#include "drogon_onebot/onebot_client.hpp"
+
+namespace {
+
+    /**
+     * @brief Read the `data` of a `can_send_*` action.
+     * @param data Object to read.
+     * @return The answer, or the first problem found, e.g. `yes is missing`.
+     */
+    auto to_can_send(Json::Value const& data) -> std::expected<drogon_onebot::CanSend, std::string> {
+        drogon_onebot::details::FieldReader fields{ data };
+        drogon_onebot::CanSend answer{
+            .yes = fields.RequiredBool("yes"),
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return answer;
+    }
+
+} // namespace
+
+namespace drogon_onebot {
+
+    /**
+     * @brief Call `can_send_image`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding whether the implementation can send images, or why the action failed.
+     * @note NapCat always answers yes.
+     */
+    auto OneBot::CanSendImage(
+        CanSendImageParams params
+    ) const -> drogon::Task<Result<CanSend>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        auto const data{ co_await transport->Call("can_send_image", Json::Value{ Json::objectValue }, params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        auto const answer{ to_can_send(*data) };
+        if (!answer) {
+            co_return std::unexpected{ details::invalid_data_error("can_send_image", answer.error(), *data) };
+        }
+        co_return *answer;
+    }
+
+} // namespace drogon_onebot

@@ -22,6 +22,7 @@
 #include "drogon_onebot/types/group.hpp"
 #include "drogon_onebot/types/message.hpp"
 #include "drogon_onebot/types/request.hpp"
+#include "drogon_onebot/types/system.hpp"
 
 namespace drogon_onebot {
 
@@ -416,6 +417,16 @@ namespace drogon_onebot {
         [[nodiscard]] auto GetImage(
             GetImageParams params
         ) const -> drogon::Task<Result<FileInfo>>;
+
+        /**
+         * @brief Call `can_send_image`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding whether the implementation can send images, or why the action failed.
+         * @note NapCat always answers yes.
+         */
+        [[nodiscard]] auto CanSendImage(
+            CanSendImageParams params = {}
+        ) const -> drogon::Task<Result<CanSend>>;
     };
 
     /**

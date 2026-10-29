@@ -63,6 +63,19 @@ namespace drogon_onebot::details {
     }
 
     /**
+     * @brief Read a required boolean member.
+     * @param key Member name.
+     * @return The boolean, or false after recording a problem.
+     */
+    auto FieldReader::RequiredBool(char const* key) -> bool {
+        if (member(m_object, key).isNull()) {
+            fail(std::format("{} is missing", key));
+            return false;
+        }
+        return Bool(key);
+    }
+
+    /**
      * @brief Read a required message member in array format.
      * @param key Member name.
      * @return The segments, or none after recording a problem.

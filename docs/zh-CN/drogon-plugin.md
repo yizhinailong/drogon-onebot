@@ -156,10 +156,11 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetCredentials(GetCredentialsParams)` | `get_credentials` | `Credentials`（`cookies`、`csrf_token`） |
 | `GetRecord(GetRecordParams)` | `get_record` | `FileInfo`（`file`） |
 | `GetImage(GetImageParams)` | `get_image` | `FileInfo`（`file`） |
+| `CanSendImage(CanSendImageParams)` | `can_send_image` | `CanSend`（`yes`） |
 
 类型化动作读取 `data` 的规则：
 
-- ID 和主要的名称或内容字段是必需的：视动作而定，包括 `user_id`、`group_id`、`nickname`、`group_name`、`message_type`、`message_id`、`message`、`messages`、`cookies`、`token`、`csrf_token`、`file` 和 `sender.user_id`。
+- ID 和主要的名称或内容字段是必需的：视动作而定，包括 `user_id`、`group_id`、`nickname`、`group_name`、`message_type`、`message_id`、`message`、`messages`、`cookies`、`token`、`csrf_token`、`file`、`yes` 和 `sender.user_id`。
 - 必需字段缺失或为 null，或任一字段类型不对（包括 `async` 时的 null `data`）时，返回 `ResponseValidation` 错误，`body` 是该 `data`。列表类动作的错误会指出是哪一项，例如 `data[1].nickname is missing`。
 - 其他字段在实现没有给出时读作空字符串、0 或 false。
 - 整数字段同时接受 JSON 数字和十进制字符串。
@@ -193,6 +194,7 @@ NapCat 在这些动作上的行为：
 - `GetImage` 接受收到的 `image` 消息段的 `file`。NapCat 下载图片，只有开启了 `enableLocalFile2Url` 设置（默认关闭）时才返回 `base64`。它的 `url` 在 NapCat 能获取到时是 QQ 上的图片地址，否则是本地路径。
 - `FileInfo::file` 是 NapCat 主机上的路径。NapCat 跑在容器里时，改从 `base64` 读取内容，或者从 `url` 下载图片。
 - NapCat 在它收到的消息的媒体里查找 `file`，这些记录在内存里保留到最后一次使用后一天；找不到时按这个名字在 QQ 的文件助手里搜索，仍找不到时以 `Action` 失败。
+- NapCat 的 `can_send_image` 总是回答 `yes`。
 
 ### 消息段
 
