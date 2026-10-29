@@ -130,6 +130,14 @@ namespace drogon_onebot {
             std::string type,
             std::string id
         ) -> MessageSegment;
+
+        /**
+         * @brief Build a rock-paper-scissors magic emoticon segment, whose result QQ picks.
+         * @return `{ "type": "rps", "data": { "result": "" } }`.
+         * @note The standard sends no data, but NapCat rejects an `rps` segment without `result`.
+         * It ignores the value; the empty string is no real result.
+         */
+        [[nodiscard]] static auto Rps() -> MessageSegment;
     };
 
     /**

@@ -106,6 +106,14 @@ DROGON_TEST(MusicSendsTypeAndId) {
     CHECK(song.data.size() == 2);
 }
 
+DROGON_TEST(RpsSendsEmptyResult) {
+    auto const rps{ drogon_onebot::MessageSegment::Rps() };
+    CHECK(rps.type == "rps");
+    CHECK(rps.data["result"].isString());
+    CHECK(rps.data["result"].asString().empty());
+    CHECK(rps.data.size() == 1);
+}
+
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
     auto image{ drogon_onebot::MessageSegment::Image("https://example.com/a.png") };
     image.data["summary"] = "[picture]";
