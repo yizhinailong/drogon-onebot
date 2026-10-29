@@ -13,6 +13,13 @@
 
 namespace drogon_onebot {
 
+    struct MessageSegment;
+
+    /**
+     * @brief Message as an ordered list of segments.
+     */
+    using Message = std::vector<MessageSegment>;
+
     /**
      * @brief One segment of a message in OneBot v11 array format.
      *
@@ -156,12 +163,22 @@ namespace drogon_onebot {
          * `id` is set, and skips a node whose message it does not know.
          */
         [[nodiscard]] static auto Node(std::int32_t message_id) -> MessageSegment;
-    };
 
-    /**
-     * @brief Message as an ordered list of segments.
-     */
-    using Message = std::vector<MessageSegment>;
+        /**
+         * @brief Build a forward node with a sender and a message of your own.
+         * @param user_id QQ number to show as the sender.
+         * @param nickname Name to show as the sender.
+         * @param content Message of the node; a content of only nodes nests a forward.
+         * @return `{ "type": "node", "data": { "user_id": "<user_id>", "nickname": <nickname>, "content": <content> } }`.
+         * @note NapCat shows that sender only with its packet backend. Without it, the bot
+         * account sends the content to itself and forwards it, so the bot appears as the sender.
+         */
+        [[nodiscard]] static auto NodeCustom(
+            std::int64_t user_id,
+            std::string nickname,
+            Message content
+        ) -> MessageSegment;
+    };
 
     /**
      * @brief Sender of a message, from its `sender` object.

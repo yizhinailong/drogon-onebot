@@ -223,6 +223,7 @@ NapCat's behavior with these actions:
 | `Music(type, id)` | `{"type": "music", "data": {"type": type, "id": id}}` |
 | `Rps()`, `Dice()` | `{"type": "rps", "data": {"result": ""}}`, or `"type": "dice"` |
 | `Node(message_id)` | `{"type": "node", "data": {"id": "<message_id>", "nickname": "", "content": null}}` |
+| `NodeCustom(user_id, nickname, content)` | `{"type": "node", "data": {"user_id": "<user_id>", "nickname": nickname, "content": [...]}}` |
 
 ```cpp
 auto const sent{ co_await bot.SendGroupMsg({
@@ -247,6 +248,7 @@ if (!sent) {
 - `Music` takes a platform and a song ID. NapCat accepts `qq`, `163`, `kugou`, `kuwo`, and `migu`, but not the standard's `xm`. It sends the song's `type` and `id` to an outside service that signs the card: the one set as `musicSignUrl` in NapCat's config, or a public one by default. When signing fails, NapCat drops the segment.
 - `Rps` and `Dice` send an empty `result`. The standard sends no data, but NapCat rejects these segments without `result`. NapCat ignores the value, and QQ picks the result.
 - A message of `Node` segments is sent as one merged forward of the messages they reference, through `SendMsg`, `SendGroupMsg`, or `SendPrivateMsg`; NapCat ignores the other segments of such a message. `Node` also sends an empty `nickname` and a null `content`, which NapCat requires on every node and ignores when `id` is set. NapCat skips a node whose message it does not know.
+- `NodeCustom` builds a node with a sender and a message of your own, and a content of only nodes nests a forward. NapCat shows that sender only when its packet backend works. Without it, the bot account sends the content to itself and forwards those messages, so the bot appears as their sender.
 - NapCat silently drops some segments and still sends the rest: `at` in a private message, and `reply` or `face` with an ID it does not know.
 - NapCat first checks every segment against its own schema. A segment of a type it does not know, or one without a field that NapCat requires, fails the whole send with `Action` and retcode 400.
 - For other segment types or extra fields, build or change `type` and `data` directly, for example `image.data["summary"] = "[picture]";`.

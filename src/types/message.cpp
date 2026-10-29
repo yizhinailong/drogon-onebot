@@ -6,6 +6,8 @@
 
 #include <utility>
 
+#include "details/json.hpp"
+
 namespace {
 
     /**
@@ -202,6 +204,26 @@ namespace drogon_onebot {
         auto result{ segment("node", "id", std::to_string(message_id)) };
         result.data["nickname"] = "";
         result.data["content"] = Json::Value{};
+        return result;
+    }
+
+    /**
+     * @brief Build a forward node with a sender and a message of your own.
+     * @param user_id QQ number to show as the sender.
+     * @param nickname Name to show as the sender.
+     * @param content Message of the node; a content of only nodes nests a forward.
+     * @return `{ "type": "node", "data": { "user_id": "<user_id>", "nickname": <nickname>, "content": <content> } }`.
+     * @note NapCat shows that sender only with its packet backend. Without it, the bot
+     * account sends the content to itself and forwards it, so the bot appears as the sender.
+     */
+    auto MessageSegment::NodeCustom(
+        std::int64_t user_id,
+        std::string nickname,
+        Message content
+    ) -> MessageSegment {
+        auto result{ segment("node", "user_id", std::to_string(user_id)) };
+        result.data["nickname"] = std::move(nickname);
+        result.data["content"] = details::to_json(content);
         return result;
     }
 

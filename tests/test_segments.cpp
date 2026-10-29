@@ -132,6 +132,30 @@ DROGON_TEST(NodeReferencesMessageWithNapCatKeys) {
     CHECK(node.data.size() == 3);
 }
 
+DROGON_TEST(NodeCustomCarriesSenderAndContent) {
+    auto const node{ drogon_onebot::MessageSegment::NodeCustom(
+        LONG_USER_ID,
+        "alice",
+        { drogon_onebot::MessageSegment::Face(123), drogon_onebot::MessageSegment::Text("hi") }
+    ) };
+    CHECK(node.type == "node");
+    CHECK(node.data["user_id"].isString());
+    CHECK(node.data["user_id"].asString() == "1234567890123");
+    CHECK(node.data["nickname"].asString() == "alice");
+    CHECK(!node.data.isMember("id"));
+    REQUIRE(node.data["content"].isArray());
+    REQUIRE(node.data["content"].size() == 2);
+    CHECK(node.data["content"][0]["type"].asString() == "face");
+    CHECK(node.data["content"][0]["data"]["id"].asString() == "123");
+    CHECK(node.data["content"][1]["type"].asString() == "text");
+    CHECK(node.data["content"][1]["data"]["text"].asString() == "hi");
+
+    auto const nested{ drogon_onebot::MessageSegment::NodeCustom(LONG_USER_ID, "alice", { node }) };
+    REQUIRE(nested.data["content"].size() == 1);
+    CHECK(nested.data["content"][0]["type"].asString() == "node");
+    CHECK(nested.data["content"][0]["data"]["content"].size() == 2);
+}
+
 DROGON_TEST(SegmentsComposeWithHandBuiltOnes) {
     auto image{ drogon_onebot::MessageSegment::Image("https://example.com/a.png") };
     image.data["summary"] = "[picture]";

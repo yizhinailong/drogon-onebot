@@ -66,7 +66,7 @@
 
 ## 消息段构造函数
 
-已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`、`Record`、`Video`、`ContactFriend`、`ContactGroup`、`Json`、`Music`、`Rps`、`Dice`、`Node`。
+已有 `Text`、`At`、`AtAll`、`Reply`、`Image`、`Face`、`Record`、`Video`、`ContactFriend`、`ContactGroup`、`Json`、`Music`、`Rps`、`Dice`、`Node`、`NodeCustom`。
 
 - [x] `record`：语音
 - [x] `video`：短视频
@@ -76,7 +76,7 @@
 - [x] `music`：音乐分享
 - [ ] `forward`：合并转发，只在收到的消息里出现，内容用 `get_forward_msg` 获取
 - [x] `node`：按 ID 引用的合并转发节点
-- [ ] `node`：自定义节点
+- [x] `node`：自定义节点
 - [x] `json`：JSON 消息
 
 ## 事件字段
