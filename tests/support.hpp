@@ -6,7 +6,6 @@
 
 #include <chrono>
 #include <condition_variable>
-#include <cstdlib>
 #include <deque>
 #include <format>
 #include <fstream>
