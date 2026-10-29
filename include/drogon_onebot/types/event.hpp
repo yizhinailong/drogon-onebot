@@ -79,11 +79,21 @@ namespace drogon_onebot {
     };
 
     /**
+     * @brief Fields of a `group_ban` notice: a member was muted or unmuted, by `NoticeEvent::sub_type` `ban` or `lift_ban`.
+     */
+    struct GroupBanNotice {
+        std::int64_t group_id{};    ///< Group number.
+        std::int64_t operator_id{}; ///< QQ number of the admin who changed the mute.
+        std::int64_t user_id{};     ///< QQ number of the muted member; NapCat sends 0 for the whole group.
+        std::int64_t duration{};    ///< Seconds of the mute; 0 when it is lifted, and NapCat's -1 for muting the whole group.
+    };
+
+    /**
      * @brief Type-specific fields of a notice, chosen by its `notice_type` and `sub_type`.
      *
      * `std::monostate` for any other notice, such as NapCat's extensions, whose fields stay in `NoticeEvent::raw`.
      */
-    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice, GroupIncreaseNotice>;
+    using NoticeDetail = std::variant<std::monostate, GroupUploadNotice, GroupAdminNotice, GroupDecreaseNotice, GroupIncreaseNotice, GroupBanNotice>;
 
     /**
      * @brief Event with `post_type` `notice`, e.g. a group member joining or a message being recalled.

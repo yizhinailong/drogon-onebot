@@ -431,6 +431,32 @@ DROGON_TEST(ParsesGroupIncreaseNotice) {
     CHECK(increase->user_id == 20002);
 }
 
+DROGON_TEST(ParsesGroupBanNotice) {
+    auto ban_json{ group_notice("group_ban") };
+    ban_json["sub_type"] = "ban";
+    ban_json["operator_id"] = 40004;
+    ban_json["duration"] = 600;
+    CHECK(post_signed(ban_json)->getStatusCode() == drogon::k204NoContent);
+    auto const notice{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(notice.has_value());
+    auto const* const ban{ std::get_if<drogon_onebot::GroupBanNotice>(&notice->detail) };
+    REQUIRE(ban != nullptr);
+    CHECK(ban->group_id == 30003);
+    CHECK(ban->operator_id == 40004);
+    CHECK(ban->user_id == 20002);
+    CHECK(ban->duration == 600);
+
+    ban_json["user_id"] = 0;
+    ban_json["duration"] = -1;
+    CHECK(post_signed(ban_json)->getStatusCode() == drogon::k204NoContent);
+    auto const whole{ g_notices.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(whole.has_value());
+    auto const* const whole_ban{ std::get_if<drogon_onebot::GroupBanNotice>(&whole->detail) };
+    REQUIRE(whole_ban != nullptr);
+    CHECK(whole_ban->user_id == 0);
+    CHECK(whole_ban->duration == -1);
+}
+
 DROGON_TEST(RejectsNoticeWithoutTypedField) {
     auto upload_json{ group_notice("group_upload") };
     upload_json["file"]["id"] = "Ae7bVzY2Pq";

@@ -276,6 +276,27 @@ namespace {
     }
 
     /**
+     * @brief Read the fields of a `group_ban` notice.
+     * @param root Notice object.
+     * @return The fields, or the first problem found, e.g. `duration is missing`.
+     */
+    auto to_group_ban_notice(
+        Json::Value const& root
+    ) -> std::expected<drogon_onebot::GroupBanNotice, std::string> {
+        FieldReader fields{ root };
+        drogon_onebot::GroupBanNotice notice{
+            .group_id = fields.RequiredInteger<std::int64_t>("group_id"),
+            .operator_id = fields.RequiredInteger<std::int64_t>("operator_id"),
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .duration = fields.RequiredInteger<std::int64_t>("duration"),
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return notice;
+    }
+
+    /**
      * @brief Read the type-specific fields of a notice.
      * @param root Notice object.
      * @param notice_type The notice's `notice_type`.
@@ -297,6 +318,9 @@ namespace {
         }
         if (notice_type == "group_increase") {
             return to_group_increase_notice(root);
+        }
+        if (notice_type == "group_ban") {
+            return to_group_ban_notice(root);
         }
         return drogon_onebot::NoticeDetail{};
     }
