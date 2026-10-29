@@ -152,10 +152,11 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `SetFriendAddRequest(SetFriendAddRequestParams)` | `set_friend_add_request` | 无（`Result<void>`） |
 | `SetGroupAddRequest(SetGroupAddRequestParams)` | `set_group_add_request` | 无（`Result<void>`） |
 | `GetCookies(GetCookiesParams)` | `get_cookies` | `Cookies`（`cookies`） |
+| `GetCsrfToken(GetCsrfTokenParams)` | `get_csrf_token` | `CsrfToken`（`token`） |
 
 类型化动作读取 `data` 的规则：
 
-- ID 和主要的名称或内容字段是必需的：视动作而定，包括 `user_id`、`group_id`、`nickname`、`group_name`、`message_type`、`message_id`、`message`、`messages`、`cookies` 和 `sender.user_id`。
+- ID 和主要的名称或内容字段是必需的：视动作而定，包括 `user_id`、`group_id`、`nickname`、`group_name`、`message_type`、`message_id`、`message`、`messages`、`cookies`、`token` 和 `sender.user_id`。
 - 必需字段缺失或为 null，或任一字段类型不对（包括 `async` 时的 null `data`）时，返回 `ResponseValidation` 错误，`body` 是该 `data`。列表类动作的错误会指出是哪一项，例如 `data[1].nickname is missing`。
 - 其他字段在实现没有给出时读作空字符串、0 或 false。
 - 整数字段同时接受 JSON 数字和十进制字符串。
@@ -183,6 +184,7 @@ NapCat 在这些动作上的行为：
 - `SetFriendAddRequest` 接受好友请求事件的 `flag`，从 `RequestEvent::raw` 读取（`event.raw["flag"].asString()`）。`remark` 只在不为空时发送。没有 `flag` 对应的待处理请求时，NapCat 以 `Action` 失败；否则它不等 QQ 的处理结果，即使 QQ 拒绝，动作也会成功。
 - `SetGroupAddRequest` 以同样的方式接受群请求事件的 `flag` 和 `sub_type`，`sub_type` 和 `reason` 只在不为空时发送。NapCat 忽略 `sub_type`；没有 `reason` 时用一个空格代替，因为 QQ 可能拒绝空的理由。在机器人收到的邀请和最近 100 条群通知里都找不到 `flag` 对应的请求时，NapCat 以 `Action` 失败；否则它同样不检查 QQ 的处理结果。
 - `GetCookies` 总是发送 `domain`，默认为空，与标准一致，因为不带它时 NapCat 的 `get_cookies` 以 `Action` 失败，`retcode` 为 400。NapCat 按这个域名登录 QQ 来获取 cookies，所以要传 cookies 所属的域名，例如 `qun.qq.com`。NapCat 还会返回 `bkn`，即这些 cookies 对应的 CSRF Token，以字符串形式放在 `Cookies::raw` 里。
+- NapCat 的 `get_csrf_token` 用账号的 `skey` 计算 token，`skey` 通过登录 QQ 获取，获取不到时以 `Action` 失败。
 
 ### 消息段
 

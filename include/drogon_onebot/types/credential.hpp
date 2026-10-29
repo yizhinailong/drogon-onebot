@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 #include <json/value.h>
@@ -24,6 +25,20 @@ namespace drogon_onebot {
     struct Cookies {
         std::string cookies; ///< Cookies in `Cookie` header form, e.g. `uin=o10001; skey=@abc12345`.
         Json::Value raw;     ///< Whole `data` as received, for fields without a member here, e.g. NapCat's `bkn`.
+    };
+
+    /**
+     * @brief Arguments of `OneBot::GetCsrfToken()`.
+     */
+    struct GetCsrfTokenParams {
+        double timeout{ 30.0 }; ///< Seconds to wait for the response; 0 waits forever.
+    };
+
+    /**
+     * @brief CSRF token of the bot account, from `get_csrf_token`.
+     */
+    struct CsrfToken {
+        std::int32_t token{}; ///< CSRF token that QQ's web APIs take, e.g. as `bkn` or `g_tk`.
     };
 
 } // namespace drogon_onebot

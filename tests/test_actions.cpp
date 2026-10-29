@@ -31,6 +31,7 @@ namespace {
     constexpr std::int64_t MESSAGE_TIME{ 1761700000 };             ///< `time` of the message that the fake `get_msg` returns.
     constexpr char const* FORWARD_ID{ "7561700000000000001" };     ///< `id` of the forward that the fake `get_forward_msg` knows, a NapCat message ID.
     constexpr char const* COOKIES{ "uin=o10001; skey=@abc12345" }; ///< `cookies` of the fake `get_cookies`.
+    constexpr std::int32_t CSRF_TOKEN{ 123456789 };                ///< `token` of the fake `get_csrf_token`, and `bkn` of `get_cookies`.
     constexpr int FAILED_RETCODE{ 100 };                           ///< `retcode` of the fake actions that fail.
     constexpr double SLOW_DELAY{ 1.0 };                            ///< Seconds that the fake `slow` action takes.
 
@@ -361,7 +362,7 @@ namespace {
     auto cookies_data(Json::Value const& request) -> Json::Value {
         Json::Value data{ Json::objectValue };
         data["cookies"] = COOKIES;
-        data["bkn"] = "123456789";
+        data["bkn"] = std::to_string(CSRF_TOKEN);
         data["request"] = request;
         return data;
     }
@@ -714,6 +715,20 @@ namespace {
         });
         serve("/failing/get_cookies", [](auto const&) {
             return envelope("failed", FAILED_RETCODE, Json::Value{}, "get cookies failed");
+        });
+        serve("/get_csrf_token", [](auto const&) {
+            Json::Value data{ Json::objectValue };
+            data["token"] = CSRF_TOKEN;
+            return ok(data);
+        });
+        serve("/bad/get_csrf_token", [](auto const&) {
+            // One past the largest int32, which NapCat's 31-bit hash never yields.
+            Json::Value data{ Json::objectValue };
+            data["token"] = Json::Int64{ 2147483648 };
+            return ok(data);
+        });
+        serve("/failing/get_csrf_token", [](auto const&) {
+            return envelope("failed", FAILED_RETCODE, Json::Value{}, "SKey is Empty");
         });
         drogon::app().registerHandler(
             "/slow",
@@ -1475,7 +1490,7 @@ DROGON_TEST(GetCookiesReadsCookies) {
     auto const cookies{ drogon::sync_wait(plugin_bot().GetCookies({ .domain = "qun.qq.com" })) };
     REQUIRE(cookies.has_value());
     CHECK(cookies->cookies == COOKIES);
-    CHECK(cookies->raw["bkn"].asString() == "123456789");
+    CHECK(cookies->raw["bkn"].asString() == std::to_string(CSRF_TOKEN));
     CHECK(cookies->raw["request"]["domain"].asString() == "qun.qq.com");
 }
 
@@ -1498,6 +1513,26 @@ DROGON_TEST(GetCookiesPassesActionError) {
     REQUIRE(!cookies.has_value());
     CHECK(cookies.error().kind == drogon_onebot::ErrorKind::Action);
     CHECK(cookies.error().message.contains("get cookies failed"));
+}
+
+DROGON_TEST(GetCsrfTokenReadsToken) {
+    auto const token{ drogon::sync_wait(plugin_bot().GetCsrfToken()) };
+    REQUIRE(token.has_value());
+    CHECK(token->token == CSRF_TOKEN);
+}
+
+DROGON_TEST(GetCsrfTokenRejectsTokenOutOfRange) {
+    auto const token{ drogon::sync_wait(bot_at("/bad").GetCsrfToken()) };
+    REQUIRE(!token.has_value());
+    CHECK(token.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(token.error().message.contains("token is not an integer in range"));
+}
+
+DROGON_TEST(GetCsrfTokenPassesActionError) {
+    auto const token{ drogon::sync_wait(bot_at("/failing").GetCsrfToken()) };
+    REQUIRE(!token.has_value());
+    CHECK(token.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(token.error().message.contains("SKey is Empty"));
 }
 
 DROGON_TEST(NoCacheIsSentOnlyWhenSet) {

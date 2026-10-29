@@ -47,7 +47,7 @@
 凭证：
 
 - [x] `get_cookies`
-- [ ] `get_csrf_token`
+- [x] `get_csrf_token`
 - [ ] `get_credentials`
 
 文件和能力：

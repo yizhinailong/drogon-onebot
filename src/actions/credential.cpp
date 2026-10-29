@@ -2,6 +2,7 @@
  * @file credential.cpp
  * @brief Implement the credential actions of `OneBot`.
  */
+#include <cstdint>
 #include <expected>
 #include <utility>
 
@@ -40,6 +41,31 @@ namespace drogon_onebot {
             co_return std::unexpected{ details::invalid_data_error("get_cookies", fields.Problem(), *data) };
         }
         co_return cookies;
+    }
+
+    /**
+     * @brief Call `get_csrf_token`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the bot account's CSRF token, or why the action failed.
+     * @note NapCat fails with `ErrorKind::Action` when it cannot get the account's `skey` from QQ.
+     */
+    auto OneBot::GetCsrfToken(
+        GetCsrfTokenParams params
+    ) const -> drogon::Task<Result<CsrfToken>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        auto const data{ co_await transport->Call("get_csrf_token", Json::Value{ Json::objectValue }, params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        details::FieldReader fields{ *data };
+        CsrfToken token{
+            .token = fields.RequiredInteger<std::int32_t>("token"),
+        };
+        if (!fields.Problem().empty()) {
+            co_return std::unexpected{ details::invalid_data_error("get_csrf_token", fields.Problem(), *data) };
+        }
+        co_return token;
     }
 
 } // namespace drogon_onebot

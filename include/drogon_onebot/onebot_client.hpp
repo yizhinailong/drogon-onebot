@@ -370,6 +370,16 @@ namespace drogon_onebot {
         [[nodiscard]] auto GetCookies(
             GetCookiesParams params = {}
         ) const -> drogon::Task<Result<Cookies>>;
+
+        /**
+         * @brief Call `get_csrf_token`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the bot account's CSRF token, or why the action failed.
+         * @note NapCat fails with `ErrorKind::Action` when it cannot get the account's `skey` from QQ.
+         */
+        [[nodiscard]] auto GetCsrfToken(
+            GetCsrfTokenParams params = {}
+        ) const -> drogon::Task<Result<CsrfToken>>;
     };
 
     /**
