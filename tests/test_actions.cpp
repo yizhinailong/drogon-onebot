@@ -244,6 +244,23 @@ namespace {
     }
 
     /**
+     * @brief Build NapCat's `get_group_member_list` data, plus the request body under `request` in each entry.
+     * @param request Body of the request, echoed so tests can check what was sent.
+     * @return `group_member_info()` of `TARGET_USER`, then the owner `SELF_ID` without `role`,
+     * as NapCat leaves it out when it does not know the member's role.
+     */
+    auto group_member_list(Json::Value const& request) -> Json::Value {
+        auto owner{ group_member_info(request) };
+        owner["user_id"] = SELF_ID;
+        owner["nickname"] = "drogon-onebot";
+        owner.removeMember("role");
+        Json::Value data{ Json::arrayValue };
+        data.append(group_member_info(request));
+        data.append(owner);
+        return data;
+    }
+
+    /**
      * @brief Build NapCat's `get_stranger_info` data, plus the request body under `request`.
      * @param request Body of the request, echoed so tests can check what was sent.
      * @return Data of `TARGET_USER`.
@@ -566,6 +583,14 @@ namespace {
         serve("/bad/get_group_member_info", [](drogon::HttpRequestPtr const& req) {
             auto data{ group_member_info(body_of(req)) };
             data["unfriendly"] = "no";
+            return ok(data);
+        });
+        serve("/get_group_member_list", [](drogon::HttpRequestPtr const& req) {
+            return known_id_or_failed(req, "group_id", TARGET_GROUP, group_member_list(body_of(req)));
+        });
+        serve("/bad/get_group_member_list", [](drogon::HttpRequestPtr const& req) {
+            auto data{ group_member_list(body_of(req)) };
+            data[1].removeMember("user_id");
             return ok(data);
         });
         serve("/get_stranger_info", [](drogon::HttpRequestPtr const& req) {
@@ -1056,6 +1081,32 @@ DROGON_TEST(GetGroupMemberInfoRejectsWrongType) {
     CHECK(info.error().message.contains("unfriendly is not a boolean"));
 }
 
+DROGON_TEST(GetGroupMemberListReadsMembers) {
+    auto const members{ drogon::sync_wait(plugin_bot().GetGroupMemberList({ .group_id = TARGET_GROUP })) };
+    REQUIRE(members.has_value());
+    REQUIRE(members->size() == 2);
+    CHECK((*members)[0].group_id == TARGET_GROUP);
+    CHECK((*members)[0].user_id == TARGET_USER);
+    CHECK((*members)[0].card == "Alice");
+    CHECK((*members)[0].role == "admin");
+    CHECK((*members)[1].user_id == SELF_ID);
+    CHECK((*members)[1].role.empty());
+}
+
+DROGON_TEST(GetGroupMemberListRejectsInvalidEntry) {
+    auto const members{ drogon::sync_wait(bot_at("/bad").GetGroupMemberList({ .group_id = TARGET_GROUP })) };
+    REQUIRE(!members.has_value());
+    CHECK(members.error().kind == drogon_onebot::ErrorKind::ResponseValidation);
+    CHECK(members.error().message.contains("data[1].user_id is missing"));
+}
+
+DROGON_TEST(GetGroupMemberListPassesActionError) {
+    auto const members{ drogon::sync_wait(plugin_bot().GetGroupMemberList({ .group_id = TARGET_GROUP + 1 })) };
+    REQUIRE(!members.has_value());
+    CHECK(members.error().kind == drogon_onebot::ErrorKind::Action);
+    CHECK(members.error().message.contains("unknown group_id"));
+}
+
 DROGON_TEST(SetGroupKickSendsRejectFlag) {
     auto const kicked{ drogon::sync_wait(plugin_bot().SetGroupKick({ .group_id = TARGET_GROUP, .user_id = TARGET_USER })) };
     CHECK(kicked.has_value());
@@ -1328,6 +1379,11 @@ DROGON_TEST(NoCacheIsSentOnlyWhenSet) {
     REQUIRE(fresh_groups.has_value());
     REQUIRE(!fresh_groups->empty());
     CHECK(fresh_groups->front().raw["request"]["no_cache"].asBool());
+
+    auto const members{ drogon::sync_wait(plugin_bot().GetGroupMemberList({ .group_id = TARGET_GROUP })) };
+    REQUIRE(members.has_value());
+    REQUIRE(!members->empty());
+    CHECK(!members->front().raw["request"].isMember("no_cache"));
 }
 
 auto main(int argc, char** argv) -> int {

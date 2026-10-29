@@ -35,6 +35,37 @@ namespace {
         return info;
     }
 
+    /**
+     * @brief Read a member object of the shape that `get_group_member_info` returns.
+     * @param data Object to read; also an entry of the `get_group_member_list` result.
+     * @return The member, or the first problem found, e.g. `user_id is missing`.
+     */
+    auto to_group_member_info(Json::Value const& data) -> std::expected<drogon_onebot::GroupMemberInfo, std::string> {
+        drogon_onebot::details::FieldReader fields{ data };
+        drogon_onebot::GroupMemberInfo info{
+            .group_id = fields.RequiredInteger<std::int64_t>("group_id"),
+            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
+            .nickname = fields.RequiredString("nickname"),
+            .card = fields.String("card"),
+            .sex = fields.String("sex"),
+            .age = fields.Integer<std::int32_t>("age").value_or(0),
+            .area = fields.String("area"),
+            .join_time = fields.Integer<std::int64_t>("join_time").value_or(0),
+            .last_sent_time = fields.Integer<std::int64_t>("last_sent_time").value_or(0),
+            .level = fields.String("level"),
+            .role = fields.String("role"),
+            .unfriendly = fields.Bool("unfriendly"),
+            .title = fields.String("title"),
+            .title_expire_time = fields.Integer<std::int64_t>("title_expire_time").value_or(0),
+            .card_changeable = fields.Bool("card_changeable"),
+            .raw = data,
+        };
+        if (!fields.Problem().empty()) {
+            return std::unexpected{ fields.Problem() };
+        }
+        return info;
+    }
+
 } // namespace
 
 namespace drogon_onebot {
@@ -110,29 +141,37 @@ namespace drogon_onebot {
         if (!data) {
             co_return std::unexpected{ data.error() };
         }
-        details::FieldReader fields{ *data };
-        GroupMemberInfo info{
-            .group_id = fields.RequiredInteger<std::int64_t>("group_id"),
-            .user_id = fields.RequiredInteger<std::int64_t>("user_id"),
-            .nickname = fields.RequiredString("nickname"),
-            .card = fields.String("card"),
-            .sex = fields.String("sex"),
-            .age = fields.Integer<std::int32_t>("age").value_or(0),
-            .area = fields.String("area"),
-            .join_time = fields.Integer<std::int64_t>("join_time").value_or(0),
-            .last_sent_time = fields.Integer<std::int64_t>("last_sent_time").value_or(0),
-            .level = fields.String("level"),
-            .role = fields.String("role"),
-            .unfriendly = fields.Bool("unfriendly"),
-            .title = fields.String("title"),
-            .title_expire_time = fields.Integer<std::int64_t>("title_expire_time").value_or(0),
-            .card_changeable = fields.Bool("card_changeable"),
-            .raw = *data,
-        };
-        if (!fields.Problem().empty()) {
-            co_return std::unexpected{ details::invalid_data_error("get_group_member_info", fields.Problem(), *data) };
+        auto info{ to_group_member_info(*data) };
+        if (!info) {
+            co_return std::unexpected{ details::invalid_data_error("get_group_member_info", info.error(), *data) };
         }
-        co_return info;
+        co_return std::move(*info);
+    }
+
+    /**
+     * @brief Call `get_group_member_list`.
+     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @return Task yielding the group's members, or why the action failed.
+     */
+    auto OneBot::GetGroupMemberList(
+        GetGroupMemberListParams params
+    ) const -> drogon::Task<Result<std::vector<GroupMemberInfo>>> {
+        // Keep the transport in the coroutine frame in case this object dies mid-request.
+        auto const transport{ m_transport };
+        Json::Value body{ Json::objectValue };
+        body["group_id"] = params.group_id;
+        if (params.no_cache) {
+            body["no_cache"] = *params.no_cache;
+        }
+        auto const data{ co_await transport->Call("get_group_member_list", std::move(body), params.timeout) };
+        if (!data) {
+            co_return std::unexpected{ data.error() };
+        }
+        auto members{ details::read_array<GroupMemberInfo>(*data, "data", to_group_member_info) };
+        if (!members) {
+            co_return std::unexpected{ details::invalid_data_error("get_group_member_list", members.error(), *data) };
+        }
+        co_return std::move(*members);
     }
 
     /**

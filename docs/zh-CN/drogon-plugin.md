@@ -139,6 +139,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 | `GetGroupInfo(GetGroupInfoParams)` | `get_group_info` | `GroupInfo`（`group_id`、`group_name`、`member_count`、`max_member_count`） |
 | `GetGroupList(GetGroupListParams)` | `get_group_list` | `std::vector<GroupInfo>` |
 | `GetGroupMemberInfo(GetGroupMemberInfoParams)` | `get_group_member_info` | `GroupMemberInfo`（`card`、`role`、`level`、`title` 及标准里的其他字段） |
+| `GetGroupMemberList(GetGroupMemberListParams)` | `get_group_member_list` | `std::vector<GroupMemberInfo>` |
 | `SetGroupKick(SetGroupKickParams)` | `set_group_kick` | 无（`Result<void>`） |
 | `SetGroupBan(SetGroupBanParams)` | `set_group_ban` | 无（`Result<void>`） |
 | `SetGroupWholeBan(SetGroupWholeBanParams)` | `set_group_whole_ban` | 无（`Result<void>`） |
@@ -162,12 +163,13 @@ NapCat 在这些动作上的行为：
 
 - `SendMsgParams` 的 `message_type`、`user_id`、`group_id` 只在设置了时才发送。不带 `message_type` 时，NapCat 的 `send_msg` 在设置了 `group_id` 时发到群里，否则发给 `user_id`。`message_type` 为 `private` 时，如果 `user_id` 不是好友，NapCat 通过 `group_id` 发临时会话。
 - `SendMsgParams` 的字段与 `MessageEvent` 对应，回调可以用同一种写法回复私聊和群消息：`bot.SendMsg({ .message_type = event.message_type, .user_id = event.user_id, .group_id = event.group_id, .message = reply })`。
-- `no_cache` 是 `std::optional<bool>`，只在设置了时才发送。不带 `no_cache` 时，NapCat 的 `get_group_member_info` 会跳过缓存、重新获取，尽管标准的默认值是 false。NapCat 的 `get_group_info` 忽略 `no_cache`。`GetFriendListParams::no_cache` 和 `GetGroupListParams::no_cache` 是 NapCat 的扩展，标准的 `get_friend_list` 和 `get_group_list` 没有参数。
+- `no_cache` 是 `std::optional<bool>`，只在设置了时才发送。不带 `no_cache` 时，NapCat 的 `get_group_member_info` 会跳过缓存、重新获取，尽管标准的默认值是 false。NapCat 的 `get_group_info` 忽略 `no_cache`。`GetFriendListParams::no_cache`、`GetGroupListParams::no_cache` 和 `GetGroupMemberListParams::no_cache` 是 NapCat 的扩展，标准的 `get_friend_list`、`get_group_list`、`get_group_member_list` 没有 `no_cache`。
 - NapCat 只在内存里保存消息 ID，默认 5000 条。对 NapCat 上次重启之前的 ID，`GetMsg`、`DeleteMsg` 和 `GetForwardMsg` 以 `Action` 失败。
 - `GetForwardMsg` 接受收到的 `forward` 消息段的 `id`。NapCat 上报的事件默认只带这个 `id`，转发的消息要用这个动作获取。
 - NapCat 对 `get_forward_msg` 返回 go-cqhttp 的 `messages`，每项是一条完整消息，形状与 `get_msg` 的相同，而不是标准里由 `node` 消息段组成的 `message`。`GetForwardMsg` 按 NapCat 的形状读取，遇到标准的形状时以 `ResponseValidation` 失败。
 - 嵌套在合并转发里的合并转发直接内嵌：它的 `forward` 消息段在 `data["content"]` 里以同样的形状带着内层消息。NapCat 不能按 `id` 获取嵌套的合并转发；转发消息的 `message_id` 只用来标识，NapCat 不能对它执行操作。
-- `GroupMemberInfo::nickname` 是 QQ 昵称，群名片是 `card`。NapCat 对部分成员不给 `role`，所以它可能为空。
+- `GroupMemberInfo::nickname` 是 QQ 昵称，群名片是 `card`。NapCat 对部分成员不给 `role`，所以它可能为空。NapCat 总是把 `unfriendly` 发成 false、`card_changeable` 发成 true、`title_expire_time` 发成 0。
+- `GetGroupMemberList` 返回的是 NapCat 缓存里的成员，没有 `get_group_member_info` 额外获取的资料详情，所以 `area` 等资料字段在列表里可能为空。
 - `SendLike` 总是发送 `times`，默认为 1；标准规定每个好友每天最多 10 次。NapCat 对成功的 `send_like` 不返回 `data`，QQ 拒绝的点赞以 `Action` 报告。
 - 群设置类动作（`SetGroup*`）对标准规定了默认值的参数总是按该默认值发送，结果不受实现自身默认值的影响。
 - NapCat 不检查 QQ 对 `set_group_kick`、`set_group_admin` 和 `set_group_leave` 的处理结果，所以 QQ 拒绝的操作（例如权限不够）也会报告成功。

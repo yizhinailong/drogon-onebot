@@ -232,6 +232,15 @@ namespace drogon_onebot {
         ) const -> drogon::Task<Result<GroupMemberInfo>>;
 
         /**
+         * @brief Call `get_group_member_list`.
+         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @return Task yielding the group's members, or why the action failed.
+         */
+        [[nodiscard]] auto GetGroupMemberList(
+            GetGroupMemberListParams params
+        ) const -> drogon::Task<Result<std::vector<GroupMemberInfo>>>;
+
+        /**
          * @brief Call `set_group_kick`.
          * @param params Request fields, taken by value so they outlive the caller's frame.
          * @return Task yielding nothing on success, or why the action failed.

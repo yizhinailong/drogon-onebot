@@ -51,7 +51,7 @@ namespace drogon_onebot {
     };
 
     /**
-     * @brief Member of a group, from `get_group_member_info`.
+     * @brief Member of a group, from `get_group_member_info` or `get_group_member_list`.
      *
      * Members other than the IDs and `nickname` read as empty, 0, or false when the
      * implementation leaves them out.
@@ -68,11 +68,20 @@ namespace drogon_onebot {
         std::int64_t last_sent_time{};    ///< Unix time in seconds of the member's last message.
         std::string level;                ///< Member level in the group, as a decimal string.
         std::string role;                 ///< `owner`, `admin`, or `member`; NapCat leaves it out for some members.
-        bool unfriendly{};                ///< Whether the member has a record of misbehavior.
+        bool unfriendly{};                ///< Whether the member has a record of misbehavior; NapCat always sends false.
         std::string title;                ///< Special title.
-        std::int64_t title_expire_time{}; ///< Unix time in seconds when the special title expires.
-        bool card_changeable{};           ///< Whether the bot account may change the member's card.
-        Json::Value raw;                  ///< Whole `data` as received, for fields without a member here, e.g. NapCat's `is_robot`.
+        std::int64_t title_expire_time{}; ///< Unix time in seconds when the special title expires; NapCat always sends 0.
+        bool card_changeable{};           ///< Whether the bot account may change the member's card; NapCat always sends true.
+        Json::Value raw;                  ///< Whole `data`, or list entry, as received, for fields without a member here, e.g. NapCat's `is_robot`.
+    };
+
+    /**
+     * @brief Arguments of `OneBot::GetGroupMemberList()`.
+     */
+    struct GetGroupMemberListParams {
+        std::int64_t group_id{};      ///< Group number.
+        std::optional<bool> no_cache; ///< Whether to skip the implementation's cache, a NapCat extension; empty sends none.
+        double timeout{ 30.0 };       ///< Seconds to wait for the response; 0 waits forever.
     };
 
     /**
