@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 4.0.0)
 project(
     drogon-onebot
     LANGUAGES CXX
-    VERSION 0.3.0
+    VERSION 0.4.0
 )
 
 option(DROGON_ONEBOT_BUILD_TESTS "Build the test executables" ${PROJECT_IS_TOP_LEVEL})
@@ -14,8 +14,6 @@ include(CMakePackageConfigHelpers)
 
 find_package(Drogon CONFIG REQUIRED)
 
-# Drogon's FindFilesystem.cmake restores an unset CMAKE_CXX_STANDARD as "",
-# which target_compile_features rejects as an invalid CXX_STANDARD.
 if(CMAKE_CXX_STANDARD STREQUAL "")
     unset(CMAKE_CXX_STANDARD)
 endif()
