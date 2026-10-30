@@ -24,7 +24,7 @@ namespace drogon_onebot::details {
      * @return Task yielding the envelope's `data` (null for an `async` response), or why the action failed.
      */
     auto call(
-        std::shared_ptr<Transport const> transport,
+        std::shared_ptr<Transport> transport,
         std::string action,
         Json::Value params,
         double timeout
@@ -41,7 +41,7 @@ namespace drogon_onebot::details {
      * @return Task yielding nothing once the action succeeded, or why it failed.
      */
     auto call_and_discard(
-        std::shared_ptr<Transport const> transport,
+        std::shared_ptr<Transport> transport,
         std::string action,
         Json::Value params,
         double timeout

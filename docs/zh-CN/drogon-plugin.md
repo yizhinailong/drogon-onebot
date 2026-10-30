@@ -343,7 +343,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 ## 线程与事件循环
 
 - 只提供协程接口。drogon 文档建议优先使用异步接口或协程，同步 API 会阻塞 IO 线程，在 client 所在的 loop 上同步等待还会死锁。
-- `Transport::Call` 为每个请求在调用线程的事件循环上新建 `HttpClient`（调用线程没有 loop 时用主 loop），并在响应到达前一直留在协程帧里。drogon 的 `HttpClient` 默认 pipelining 深度为 0，共享一个 client 会让并发请求串行执行。
+- `HttpTransport::Call` 为每个请求在调用线程的事件循环上新建 `HttpClient`（调用线程没有 loop 时用主 loop），并在响应到达前一直留在协程帧里。drogon 的 `HttpClient` 默认 pipelining 深度为 0，共享一个 client 会让并发请求串行执行。
 - 协程按值接收参数。每个动作方法构造请求体后，返回 `details::call_and_read` 或 `details::call_and_discard` 的任务，transport 作为协程参数进入它们的协程帧，所以即使 `OneBot` 在任务开始前或请求途中被销毁，请求也能完成。
 
 ## 已知限制

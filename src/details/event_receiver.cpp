@@ -1,6 +1,6 @@
 /**
  * @file event_receiver.cpp
- * @brief Implement the receiver behind the route that the OneBot implementation posts events to.
+ * @brief Implement the receiver that checks, parses, and dispatches the events of the OneBot implementation.
  */
 #include "details/event_receiver.hpp"
 
@@ -498,21 +498,11 @@ namespace {
     }
 
     /**
-     * @brief Parsed event; `std::monostate` for a `post_type` without handlers.
-     */
-    using Event = std::variant<
-        std::monostate,
-        drogon_onebot::MessageEvent,
-        drogon_onebot::NoticeEvent,
-        drogon_onebot::RequestEvent,
-        drogon_onebot::MetaEvent>;
-
-    /**
      * @brief Parse a posted event by its `post_type`.
      * @param root Parsed request body.
      * @return The event (`std::monostate` for an unknown `post_type`), or why the body is not an event.
      */
-    auto parse_event(Json::Value const& root) -> std::expected<Event, std::string> {
+    auto parse_event(Json::Value const& root) -> std::expected<drogon_onebot::details::ParsedEvent, std::string> {
         if (!root.isObject()) {
             return std::unexpected{ std::string{ "event is not a JSON object" } };
         }
@@ -534,7 +524,7 @@ namespace {
             return parse_meta_event(root);
         }
         LOG_DEBUG << "drogon_onebot::OneBotClient: dropped an event with post_type " << post_type;
-        return Event{};
+        return drogon_onebot::details::ParsedEvent{};
     }
 
     /**
@@ -664,14 +654,36 @@ namespace drogon_onebot::details {
         // Answer first: NapCat keeps its request open until this response arrives, and a
         // handler may await for seconds, e.g. on an LLM.
         callback(drogon::HttpResponse::newHttpResponse(drogon::k204NoContent, drogon::CT_NONE));
+        dispatchEvent(*event);
+    }
 
-        if (auto const* message{ std::get_if<MessageEvent>(&*event) }) {
+    /**
+     * @brief Start the handlers of one event that arrived over the reverse WebSocket.
+     * @param root Parsed message, a JSON object with a `post_type`.
+     * @note An event that fails to parse is logged and dropped, because a WebSocket push
+     * has no answer to carry the reason. Event types other than the four above are dropped.
+     */
+    auto EventReceiver::Deliver(Json::Value const& root) const -> void {
+        auto const event{ parse_event(root) };
+        if (!event) {
+            LOG_WARN << "drogon_onebot::OneBotClient: dropped a reverse WebSocket event: " << event.error();
+            return;
+        }
+        dispatchEvent(*event);
+    }
+
+    /**
+     * @brief Start every handler of a parsed event's type, each in its own task.
+     * @param event Parsed event; `std::monostate` starts nothing.
+     */
+    auto EventReceiver::dispatchEvent(ParsedEvent const& event) const -> void {
+        if (auto const* message{ std::get_if<MessageEvent>(&event) }) {
             dispatch(m_message_handlers, *message, "message");
-        } else if (auto const* notice{ std::get_if<NoticeEvent>(&*event) }) {
+        } else if (auto const* notice{ std::get_if<NoticeEvent>(&event) }) {
             dispatch(m_notice_handlers, *notice, "notice");
-        } else if (auto const* request{ std::get_if<RequestEvent>(&*event) }) {
+        } else if (auto const* request{ std::get_if<RequestEvent>(&event) }) {
             dispatch(m_request_handlers, *request, "request");
-        } else if (auto const* meta{ std::get_if<MetaEvent>(&*event) }) {
+        } else if (auto const* meta{ std::get_if<MetaEvent>(&event) }) {
             dispatch(m_meta_event_handlers, *meta, "meta");
         }
     }

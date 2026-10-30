@@ -18,7 +18,7 @@
 
 #include "details/action_call.hpp"
 #include "details/event_receiver.hpp"
-#include "details/transport.hpp"
+#include "details/http_transport.hpp"
 
 namespace {
 
@@ -71,7 +71,7 @@ namespace drogon_onebot {
      * @param config Endpoint settings; `access_token` may be empty for endpoints without auth.
      */
     OneBot::OneBot(OneBotConfig config)
-        : m_transport{ std::make_shared<details::Transport>(std::move(config)) } {}
+        : m_transport{ std::make_shared<details::HttpTransport>(std::move(config)) } {}
 
     /**
      * @brief Call any action and await its `data` field.

@@ -343,7 +343,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 ## Threads and event loops
 
 - Only coroutine APIs are provided. drogon's documentation recommends asynchronous APIs or coroutines. A synchronous API blocks the IO thread, and waiting synchronously on the loop that the client runs on also deadlocks.
-- `Transport::Call` creates a new `HttpClient` for each request on the calling thread's event loop (or on the main loop when the calling thread runs no loop), and keeps it in the coroutine frame until the response arrives. drogon's `HttpClient` defaults to pipelining depth 0, so sharing one client would serialize concurrent requests.
+- `HttpTransport::Call` creates a new `HttpClient` for each request on the calling thread's event loop (or on the main loop when the calling thread runs no loop), and keeps it in the coroutine frame until the response arrives. drogon's `HttpClient` defaults to pipelining depth 0, so sharing one client would serialize concurrent requests.
 - Coroutines take their parameters by value. Each action method builds the request body and returns the task of `details::call_and_read` or `details::call_and_discard`, which takes the transport as a coroutine parameter, so a request completes even if the `OneBot` is destroyed before the task starts or while the request is in flight.
 
 ## Known limitations
