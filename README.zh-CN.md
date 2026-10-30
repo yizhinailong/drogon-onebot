@@ -2,10 +2,11 @@
 
 [English](README.md) · 简体中文
 
-基于 [drogon](https://github.com/drogonframework/drogon) 的 [OneBot v11](https://github.com/botuniverse/onebot-11) 插件库，供其他 drogon 应用以插件形式使用。它实现了两部分：
+基于 [drogon](https://github.com/drogonframework/drogon) 的 [OneBot v11](https://github.com/botuniverse/onebot-11) 插件库，供其他 drogon 应用以插件形式使用。它实现了三部分：
 
 - **调用动作**：OneBot v11 的 HTTP API。
 - **接收事件**：HTTP POST 上报。
+- **在一条连接上同时做这两件事**：反向 WebSocket，由 OneBot 实现连接上来。
 
 行为以 [NapCat](https://github.com/NapNeko/NapCatQQ) 为准测试。
 
@@ -123,7 +124,9 @@ NapCat 端需要两个网络端点：
 - HTTP 服务器：供本库调用动作，`token` 对应 `ONEBOT_ACCESS_TOKEN`。
 - HTTP 客户端：`url` 指向 `event_path`，`token` 对应 `ONEBOT_SECRET`，`messagePostFormat` 为 `array`。
 
-配置项、事件类型、回调的注册时机和生命周期、错误分类与线程模型见 [插件使用说明](docs/zh-CN/drogon-plugin.md)。
+改用反向 WebSocket 时，用 `ws_path` 代替 `base_url` 和 `event_path`，NapCat 端只需一个 WebSocket 客户端：`url` 指向 `ws_path`，`token` 对应 `ONEBOT_ACCESS_TOKEN`，`messagePostFormat` 为 `array`。同时在 config.json 的 `app` 段调大 `client_max_websocket_message_size`，因为 drogon 默认在任何超过 128 KiB 的消息上关闭连接。
+
+配置项、反向 WebSocket、事件类型、回调的注册时机和生命周期、错误分类与线程模型见 [插件使用说明](docs/zh-CN/drogon-plugin.md)。
 
 ## 开发与文档
 

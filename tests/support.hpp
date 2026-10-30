@@ -28,6 +28,7 @@ namespace test_support {
     constexpr auto NO_EVENT_WAIT{ std::chrono::milliseconds{ 300 } }; ///< Wait after which a handler that has not run counts as not run.
     constexpr char const* SERVER_URL{ "http://127.0.0.1:18080" };     ///< Listener in config.json, which its `base_url` points at.
     constexpr char const* EVENT_PATH{ "/onebot/event" };              ///< `event_path` in config.json.
+    constexpr char const* WS_PATH{ "/onebot/ws" };                    ///< `ws_path` in config.json.
     constexpr char const* SECRET_ENV{ "DROGON_ONEBOT_TEST_SECRET" };  ///< `secret_env` in config.json.
     constexpr char const* SECRET{ "drogon-onebot-test-secret" };      ///< Value that the tests give `SECRET_ENV`.
 

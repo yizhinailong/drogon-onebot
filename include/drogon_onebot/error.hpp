@@ -13,10 +13,10 @@ namespace drogon_onebot {
      * @brief Category of a failed action.
      */
     enum class ErrorKind {
-        Connection,         ///< No response arrived, e.g. DNS, TLS, or network failure.
+        Connection,         ///< No response arrived, e.g. DNS, TLS, or network failure, or no reverse WebSocket connection was open or it closed first.
         Timeout,            ///< No response arrived within the timeout.
-        Status,             ///< The OneBot implementation answered with a non-2xx status.
-        ResponseValidation, ///< A 2xx response was not a OneBot response envelope of the expected shape, or a typed action's `data` lacked a field.
+        Status,             ///< The OneBot implementation answered with a non-2xx HTTP status.
+        ResponseValidation, ///< A response (over HTTP, a 2xx one) was not a OneBot response envelope of the expected shape, or a typed action's `data` lacked a field.
         Action,             ///< The OneBot implementation answered with `"status": "failed"`.
     };
 
@@ -28,7 +28,7 @@ namespace drogon_onebot {
         std::string message; ///< Human-readable description; includes the envelope's `message` or `wording` when present.
         int status_code{};   ///< HTTP status for `ErrorKind::Status`; 0 otherwise.
         int retcode{};       ///< OneBot `retcode` for `ErrorKind::Action`; 0 otherwise.
-        std::string body;    ///< Response body for `Status`, `ResponseValidation`, and `Action` (the envelope's `data` when a typed action finds a field missing); empty otherwise.
+        std::string body;    ///< Response body, or response message over the reverse WebSocket, for `Status`, `ResponseValidation`, and `Action` (the envelope's `data` when a typed action finds a field missing); empty otherwise.
     };
 
     /**

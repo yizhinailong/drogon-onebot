@@ -3,6 +3,7 @@
     "number_of_threads": 1,
     "document_root": "/tmp/drogon-onebot-example",
     "upload_path": "uploads",
+    "client_max_websocket_message_size": "64M",
     "log": {
       "log_path": "",
       "logfile_base_name": "",
@@ -22,7 +23,8 @@
       "config": {
         "base_url": "http://127.0.0.1:18080",
         "event_path": "/onebot/event",
-        "secret_env": "DROGON_ONEBOT_TEST_SECRET"
+        "secret_env": "DROGON_ONEBOT_TEST_SECRET",
+        "ws_path": "/onebot/ws"
       }
     }
   ]

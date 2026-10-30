@@ -29,20 +29,22 @@ namespace drogon_onebot {
     namespace details {
 
         class EventReceiver;
+        class ReverseWebSocket;
         class Transport;
 
     } // namespace details
 
     /**
-     * @brief Settings of the plugin: the HTTP API endpoint of a `OneBot` and the event route.
+     * @brief Settings of the plugin: where a `OneBot` calls actions, and where events arrive.
      *
      * The plugin reads them from its `config` object.
      */
     struct OneBotConfig {
-        std::string base_url;     ///< HTTP API base URL of the OneBot v11 implementation, e.g. `http://127.0.0.1:3000`; may carry a path prefix.
-        std::string access_token; ///< Access token from the `access_token_env` variable; empty without it.
+        std::string base_url;     ///< HTTP API base URL of the OneBot v11 implementation, e.g. `http://127.0.0.1:3000`; may carry a path prefix. Empty sends actions over the reverse WebSocket instead.
+        std::string access_token; ///< Access token from the `access_token_env` variable, sent to the HTTP API and required from reverse WebSocket connections; empty without it.
         std::string event_path;   ///< Path of the route that receives posted events, e.g. `/onebot/event`; empty registers no route.
         std::string secret;       ///< Secret from the `secret_env` variable that signs posted events; empty accepts unsigned events.
+        std::string ws_path;      ///< Path of the reverse WebSocket route that the implementation connects to, e.g. `/onebot/ws`; empty registers no route.
     };
 
     /**
@@ -66,7 +68,7 @@ namespace drogon_onebot {
     using MetaEventHandler = std::function<drogon::Task<>(MetaEvent)>;
 
     /**
-     * @brief Client for the HTTP API of one OneBot v11 implementation.
+     * @brief Client for one OneBot v11 implementation, over its HTTP API or its reverse WebSocket.
      *
      * Methods mirror OneBot v11 action names: `SendPrivateMsg()` calls `send_private_msg`.
      *
@@ -86,14 +88,20 @@ namespace drogon_onebot {
      * Each method reads its parameters and hands the returned task its own share of the
      * transport before it returns. The task may therefore outlive this handle and the
      * parameters, even though it starts only when awaited.
+     *
+     * A client from `OneBotClient::NewOneBotClient()` without `base_url` sends actions over
+     * the reverse WebSocket connection that is open when each call starts. A call fails with
+     * `ErrorKind::Connection` when none is open, or when it closes before the response arrives.
      */
     class OneBot final {
     private:
         std::shared_ptr<details::Transport> m_transport; ///< Connection shared by all copies.
 
+        friend class OneBotClient;
+
     public:
         /**
-         * @brief Create a client for the endpoint in `config`.
+         * @brief Create a client for the HTTP API in `config`.
          * @param config Endpoint settings; `access_token` may be empty for endpoints without auth.
          */
         explicit OneBot(OneBotConfig config);
@@ -102,8 +110,8 @@ namespace drogon_onebot {
          * @brief Call any action and await its `data` field.
          * @param params Action name and parameters, read before this returns.
          * @return Task yielding the response envelope's `data` (null for an `async` response), or why the action failed.
-         * @note The request runs on the calling thread's event loop (the main loop when the
-         * thread runs none), so the coroutine resumes on the thread that awaited it.
+         * @note The coroutine resumes on the calling thread's event loop (the main loop when the
+         * thread runs none). Over HTTP, the request also runs there.
          */
         [[nodiscard]] auto CallAction(
             CallActionParams params
@@ -484,10 +492,17 @@ namespace drogon_onebot {
         [[nodiscard]] auto CleanCache(
             CleanCacheParams params = {}
         ) const -> drogon::Task<Result<void>>;
+
+    private:
+        /**
+         * @brief Create a client that calls actions through `transport`.
+         * @param transport Transport to share, e.g. the plugin's reverse WebSocket.
+         */
+        explicit OneBot(std::shared_ptr<details::Transport> transport);
     };
 
     /**
-     * @brief Drogon plugin that owns the OneBot settings and receives the events posted to it.
+     * @brief Drogon plugin that owns the OneBot settings and receives the implementation's events.
      *
      * Register it in the application's config.json:
      * @code{.json}
@@ -502,10 +517,22 @@ namespace drogon_onebot {
      * }]
      * @endcode
      *
+     * or, for NapCat's reverse WebSocket client (`websocketClients`) instead of its HTTP
+     * server and HTTP client:
+     * @code{.json}
+     * "plugins": [{
+     *     "name": "drogon_onebot::OneBotClient",
+     *     "config": {
+     *         "ws_path": "/onebot/ws",
+     *         "access_token_env": "ONEBOT_ACCESS_TOKEN"
+     *     }
+     * }]
+     * @endcode
+     *
      * Secrets are never read from config.json: `access_token_env` and `secret_env`
-     * name the environment variables that hold the access token of the HTTP API
-     * and the secret that signs posted events. Omit either when the OneBot
-     * implementation has none.
+     * name the environment variables that hold the access token, which the HTTP API
+     * and the reverse WebSocket share, and the secret that signs posted events. Omit
+     * either when the OneBot implementation has none.
      *
      * With `event_path` set, the plugin registers a `POST` route there for the
      * implementation's HTTP POST reporting (NapCat's HTTP client). The route
@@ -514,6 +541,20 @@ namespace drogon_onebot {
      * hold the implementation's request open. Reply through `NewOneBotClient()`.
      * Without `secret_env`, the route accepts unsigned events from anyone who can
      * reach the listener, and `initAndStart()` logs a warning about it.
+     *
+     * With `ws_path` set, the plugin registers a WebSocket route there that the
+     * implementation connects to as a Universal client. The handshake must carry
+     * `Authorization: Bearer <access_token>` when an access token is set; without one,
+     * the route accepts connections from anyone who can reach the listener, and
+     * `initAndStart()` logs a warning about it. Events on the connection run the
+     * same handlers as posted ones. Without `base_url`, `NewOneBotClient()` sends
+     * actions over the connection. One connection is open at a time; a new one
+     * replaces it.
+     *
+     * drogon closes a WebSocket connection when a message exceeds the app's
+     * `client_max_websocket_message_size` (128 KiB by default), and NapCat answers
+     * with whole messages, e.g. every member of a group. Raise that setting in the
+     * `app` section of config.json.
      *
      * Fetch the plugin once `app().run()` has started, e.g. from a beginning advice
      * or a handler: `drogon::app().getPlugin<drogon_onebot::OneBotClient>()`.
@@ -524,16 +565,18 @@ namespace drogon_onebot {
      */
     class OneBotClient : public drogon::Plugin<OneBotClient> {
     private:
-        OneBotConfig m_config;                              ///< Settings parsed in `initAndStart()`.
-        std::shared_ptr<details::EventReceiver> m_receiver; ///< Handlers behind the `event_path` route, shared with it; created in `initAndStart()`.
+        OneBotConfig m_config;                                   ///< Settings parsed in `initAndStart()`.
+        std::shared_ptr<details::EventReceiver> m_receiver;      ///< Handlers behind the `event_path` and `ws_path` routes, shared with them; created in `initAndStart()`.
+        std::shared_ptr<details::ReverseWebSocket> m_reverse_ws; ///< Connection behind the `ws_path` route, shared with it; null without `ws_path`.
 
     public:
         /**
-         * @brief Read the settings from the plugin's `config` object and register the event route.
+         * @brief Read the settings from the plugin's `config` object and register the event routes.
          * @param config The plugin's `config` object from config.json.
-         * @throws std::invalid_argument If `base_url` is missing or empty, if
-         * `event_path` is set but does not start with `/`, or if `access_token_env`
-         * or `secret_env` names an unset or empty environment variable.
+         * @throws std::invalid_argument If both `base_url` and `ws_path` are missing
+         * or empty, if `event_path` or `ws_path` is set but does not start with `/`,
+         * or if `access_token_env` or `secret_env` names an unset or empty environment
+         * variable.
          */
         auto initAndStart(Json::Value const& config) -> void override;
 
@@ -550,41 +593,43 @@ namespace drogon_onebot {
 
         /**
          * @brief Create a `OneBot` client for the configured endpoint.
-         * @return A new client; call only after drogon has initialized the plugin.
+         * @return A new client for the HTTP API at `base_url`, or for the reverse
+         * WebSocket without one; call only after drogon has initialized the plugin.
          */
         [[nodiscard]] auto NewOneBotClient() const -> OneBot;
 
         /**
-         * @brief Run `handler` for every message event posted to `event_path`.
+         * @brief Run `handler` for every message event that arrives on `event_path` or `ws_path`.
          * @param handler Coroutine to run. Each event runs a copy of it, so its
          * captures stay alive until that run completes. An exception it throws is
          * logged and dropped.
          * @note Call only after drogon has initialized the plugin, and before the
          * listeners start: from a beginning advice, or from `initAndStart()` of a
-         * plugin that lists this one under `dependencies`. The route reads the
+         * plugin that lists this one under `dependencies`. The routes read the
          * handlers from IO threads without a lock, so once the listeners have
          * started, this logs an error and drops `handler`.
          */
         auto OnMessage(MessageHandler handler) -> void;
 
         /**
-         * @brief Run `handler` for every notice event posted to `event_path`.
+         * @brief Run `handler` for every notice event that arrives on `event_path` or `ws_path`.
          * @param handler Coroutine to run; see `OnMessage()` for its lifetime and exceptions.
          * @note Register handlers at the times that `OnMessage()` lists.
          */
         auto OnNotice(NoticeHandler handler) -> void;
 
         /**
-         * @brief Run `handler` for every request event posted to `event_path`.
+         * @brief Run `handler` for every request event that arrives on `event_path` or `ws_path`.
          * @param handler Coroutine to run; see `OnMessage()` for its lifetime and exceptions.
          * @note Register handlers at the times that `OnMessage()` lists.
          */
         auto OnRequest(RequestHandler handler) -> void;
 
         /**
-         * @brief Run `handler` for every meta event posted to `event_path`.
+         * @brief Run `handler` for every meta event that arrives on `event_path` or `ws_path`.
          * @param handler Coroutine to run; see `OnMessage()` for its lifetime and exceptions.
-         * @note Register handlers at the times that `OnMessage()` lists.
+         * @note Register handlers at the times that `OnMessage()` lists. NapCat sends
+         * meta events, its lifecycle `connect` and heartbeats, only over WebSocket.
          */
         auto OnMetaEvent(MetaEventHandler handler) -> void;
 

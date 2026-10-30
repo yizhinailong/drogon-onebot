@@ -2,20 +2,22 @@
 
 [English](../en/drogon-plugin.md) · 简体中文
 
-本文整理 drogon-onebot 作为 drogon 插件的接入方式、配置、生命周期和使用方法，以及与 drogon 线程模型相关的设计约束。协议是 OneBot v11，实现了两部分：
+本文整理 drogon-onebot 作为 drogon 插件的接入方式、配置、生命周期和使用方法，以及与 drogon 线程模型相关的设计约束。协议是 OneBot v11，实现了三部分：
 
 - 主动调用动作：HTTP API，`OneBot` 客户端。
 - 接收事件：HTTP POST 上报，插件注册的事件路由。
+- 在一条连接上同时做这两件事：反向 WebSocket，插件注册 WebSocket 路由，由 OneBot 实现连上来。
 
 对接的实现以 NapCat 为准。
 
 ## 概览
 
-`drogon_onebot::OneBotClient` 继承 `drogon::Plugin<OneBotClient>`，负责三件事：
+`drogon_onebot::OneBotClient` 继承 `drogon::Plugin<OneBotClient>`，负责四件事：
 
 1. 在 drogon 启动时从 config.json 读取并校验配置（`OneBotConfig`）。
 2. 配置了 `event_path` 时，在该路径注册 `POST` 路由，接收 OneBot 实现上报的事件，并分发给 `OnMessage` 等方法注册的回调。
-3. 通过 `NewOneBotClient()` 生成绑定该配置的 `OneBot` 客户端，用来调用动作，例如回复消息。
+3. 配置了 `ws_path` 时，在该路径注册 WebSocket 路由。OneBot 实现连接上来，通过这条连接把事件推给同一批回调，并应答发给它的动作。
+4. 通过 `NewOneBotClient()` 生成绑定该配置的 `OneBot` 客户端，用来调用动作，例如回复消息：有 `base_url` 时走 HTTP API，没有时走反向 WebSocket。
 
 `OneBot` 的方法名与 OneBot v11 的动作名一一对应（`SendGroupMsg` ↔ `send_group_msg`），注册回调的方法名沿用 aiocqhttp（`on_message` ↔ `OnMessage`）：
 
@@ -58,19 +60,38 @@ target_link_libraries(app PRIVATE drogon-onebot::drogon-onebot)
 ]
 ```
 
+使用反向 WebSocket 时，一条路由承担两个方向，可以不写 `base_url`：
+
+```json
+"app": {
+    "client_max_websocket_message_size": "64M"
+},
+"plugins": [
+    {
+        "name": "drogon_onebot::OneBotClient",
+        "config": {
+            "ws_path": "/onebot/ws",
+            "access_token_env": "ONEBOT_ACCESS_TOKEN"
+        }
+    }
+]
+```
+
 | 配置项 | 必填 | 说明 |
 |---|---|---|
-| `base_url` | 是 | OneBot 实现的 HTTP API 地址，可带路径前缀。动作发往 `<base_url>/<action>`。 |
-| `access_token_env` | 否 | 存放 access token 的**环境变量名**。省略时不发送 `Authorization` 头。 |
-| `event_path` | 否 | 接收事件的路由路径，必须以 `/` 开头。省略时不注册路由，插件只能发不能收。 |
+| `base_url` | 没有 `ws_path` 时必填 | OneBot 实现的 HTTP API 地址，可带路径前缀。动作发往 `<base_url>/<action>`。省略时动作通过反向 WebSocket 连接发送。 |
+| `access_token_env` | 否 | 存放 access token 的**环境变量名**。省略时既不发送也不校验 `Authorization` 头；这时如果设置了 `ws_path`，`initAndStart` 会打一条 WARN 日志，因为任何能访问监听端口的人都能连上来。 |
+| `event_path` | 否 | 接收事件的路由路径，必须以 `/` 开头。省略时不注册路由；`ws_path` 也省略时，插件只能发不能收。 |
 | `secret_env` | 否 | 存放上报签名密钥的**环境变量名**。省略时不校验签名，接受未签名的事件；这时如果设置了 `event_path`，`initAndStart` 会打一条 WARN 日志，因为任何能访问监听端口的人都能上报事件。 |
+| `ws_path` | 否 | 反向 WebSocket 的路由路径，供 OneBot 实现连接，必须以 `/` 开头。省略时不注册 WebSocket 路由。 |
 
 - 两个密钥都不写进 config.json，只从环境变量读取。
-- access token 以 `Authorization: Bearer <token>` 发送，需与 OneBot 实现 HTTP API 的 token 一致。
+- access token 以 `Authorization: Bearer <token>` 发给 HTTP API，连接 `ws_path` 时也必须以同样的形式带上。它需与 OneBot 实现的 HTTP 服务器和反向 WebSocket 客户端的 token 一致。
 - secret 用来校验每个事件的 `X-Signature: sha1=<HMAC-SHA1(secret, body) 的十六进制>`。
+- 设置了 `ws_path` 时，像上面那样在 `app` 段调大 `client_max_websocket_message_size`，见“反向 WebSocket”。
 - 出现以下任一情况时，`initAndStart` 抛 `std::invalid_argument`：
-  - `base_url` 缺失或为空；
-  - `event_path` 不以 `/` 开头；
+  - `base_url` 和 `ws_path` 都缺失或为空；
+  - `event_path` 或 `ws_path` 不以 `/` 开头；
   - 设置了 `access_token_env` 或 `secret_env`，但对应的环境变量未设置或为空。
 
   异常从 `app().run()` 抛出，不捕获时程序终止。
@@ -100,12 +121,27 @@ NapCat 的 OneBot 配置（`onebot11_<QQ号>.json`）需要两个网络端点：
   - HTTP 客户端的设置作用于上报的事件。设为 `string` 时 `message` 是 CQ 码字符串，事件路由会以 400 拒收。
   - HTTP 服务器的设置作用于 `get_msg` 返回的 `message`。设为 `string` 时 `GetMsg` 以 `ResponseValidation` 失败。
 
+使用反向 WebSocket 时，一个 WebSocket 客户端就能代替这两个端点：
+
+```json
+"network": {
+    "websocketClients": [
+        { "name": "bot", "enable": true, "url": "ws://127.0.0.1:8080/onebot/ws", "messagePostFormat": "array", "reportSelfMessage": false, "reconnectInterval": 5000, "heartInterval": 30000, "token": "<ONEBOT_ACCESS_TOKEN 的值>" }
+    ]
+}
+```
+
+- `websocketClients[].token` 是 access token：NapCat 在握手时以 `Authorization: Bearer <token>` 发送，对应 `access_token_env`。即使 token 为空，NapCat 也会发送这个头；插件设置了 access token 时，路由会以 403 拒绝。
+- `messagePostFormat` 作用于这条连接上的事件和 `get_msg` 返回的 `message`，同样设为 `array`。
+- 连接断开后，NapCat 每隔 `reconnectInterval` 毫秒重连一次。每条新连接上它先发一个生命周期 `connect` 事件，之后每隔 `heartInterval` 毫秒发一次心跳；设为 0 时不发心跳。
+- 如果想让事件走 WebSocket、动作仍走 HTTP，就同时保留 HTTP 服务器和 `base_url`。
+
 ## 生命周期
 
 ```
 app().loadConfigFile("config.json")       读取 plugins 配置段
 app().run()
- ├─ OneBotClient::initAndStart(config)    解析并校验配置，注册 event_path 路由，失败时抛异常
+ ├─ OneBotClient::initAndStart(config)    解析并校验配置，注册 event_path 和 ws_path 路由，失败时抛异常
  ├─ 初始化路由                             此后不能再注册路由
  ├─ beginning advices                     从这里开始 getPlugin<OneBotClient>() 可用，在这里注册回调
  ├─ startListening()                      各 IO loop 异步开始监听，事件开始到达
@@ -114,7 +150,8 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 ```
 
 - `getPlugin` 返回 `OneBotClient*`，由 drogon 持有，不要 delete。
-- 事件路由在 `initAndStart` 里注册。drogon 先初始化插件、再初始化路由（`HttpAppFrameworkImpl.cc:663-671`），drogon 自带的 `PromExporter` 插件也是这样注册路由的（`PromExporter.cc:18`）。
+- 路由在 `initAndStart` 里注册。drogon 先初始化插件、再初始化路由（`HttpAppFrameworkImpl.cc:663-671`），drogon 自带的 `PromExporter` 插件也是这样注册路由的（`PromExporter.cc:18`）。
+- drogon 初始化路由时按类名查找 WebSocket controller 和 middleware。为 `ws_path`，插件用 `registerController` 和 `registerMiddleware` 注册自己创建的 `details::ReverseWsController` 实例，以及校验握手的 middleware `details::ReverseWsHandshake` 的实例。
 - 静态链接时，应用代码必须引用 `OneBotClient`（调用一次 `getPlugin<drogon_onebot::OneBotClient>()` 即可），否则链接器丢掉 `onebot_client.o`，drogon 打印 `Plugin drogon_onebot::OneBotClient undefined!` 后继续运行。
 
 ## 调用动作
@@ -122,6 +159,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 - `OneBot` 是值句柄，内部唯一的共享状态是一个 `std::shared_ptr<details::Transport>`。拷贝只是引用计数加一，传进协程时按值传递。
 - 每个方法在返回之前就读完参数，并让返回的任务持有一份 transport。任务要到 `co_await` 时才开始执行，但在此之前不需要 `OneBot` 或参数仍然存活。
 - 每个方法返回 `drogon::Task<Result<T>>`，`Result<T>` 是 `std::expected<T, Error>`。动作失败**不会抛异常**。
+- 没有 `base_url` 时，客户端把每个动作发到调用开始时打开着的反向 WebSocket 连接上，所以同一个 `OneBot` 在 NapCat 重连之后依然可用；见“反向 WebSocket”。
 - 消息使用数组格式：`Message` 即 `std::vector<MessageSegment>`，每段是 `type` 加 `Json::Value data`。暂不支持 CQ 码字符串和 `auto_escape`。
 
 | 方法 | 动作 | 返回 |
@@ -275,7 +313,8 @@ if (!sent) {
 - NapCat 有时把 `user_id`、`group_id` 发成字符串，解析时按数字读取。
 - 请求事件缺少 `user_id` 或 `flag`，或群请求缺少 `group_id` 时返回 400。NapCat 只上报未读、不是机器人自己发起、尚未处理的好友请求。
 - 群请求的 `sub_type` 为 `add` 时是加群申请，`user_id` 是申请人；为 `invite` 时是邀请机器人入群，`user_id` 是邀请人。群成员邀请别人入群、需要管理员审核时，NapCat 也报为 `add`。
-- 心跳带 `status` 和 `interval`：`status` 是与 `GetStatus` 返回值相同的 `Status`，`interval` 是到下一次心跳的毫秒数；缺少它们时返回 400。NapCat 只通过 WebSocket 发送元事件，所以使用 HTTP POST 上报时，对 NapCat 来说 `OnMetaEvent` 永远不会运行。
+- 心跳带 `status` 和 `interval`：`status` 是与 `GetStatus` 返回值相同的 `Status`，`interval` 是到下一次心跳的毫秒数；缺少它们时返回 400。NapCat 只通过 WebSocket 发送元事件：使用反向 WebSocket 时，每条连接上先有一个生命周期 `connect` 事件，之后是心跳。使用 HTTP POST 上报时，对 NapCat 来说 `OnMetaEvent` 永远不会运行。
+- 通过反向 WebSocket 收到的事件没有响应可以携带状态码。路由本会以 400 拒收的事件会打一条 WARN 日志后丢弃，其他 `post_type` 也直接丢弃。
 
 ### 通知详情
 
@@ -317,11 +356,36 @@ plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
 
 ### 回调的约束
 
-- **注册时机**：只能在插件初始化之后、开始监听之前注册，也就是在 beginning advice 里，或在把本插件列进 `dependencies` 的另一个插件的 `initAndStart` 里。路由在 IO 线程上读取回调列表，没有加锁，所以开始监听之后再调用 `On*`，会打一条 ERROR 日志并丢弃该回调。
+- **注册时机**：只能在插件初始化之后、开始监听之前注册，也就是在 beginning advice 里，或在把本插件列进 `dependencies` 的另一个插件的 `initAndStart` 里。各路由在 IO 线程上读取回调列表，没有加锁，所以开始监听之后再调用 `On*`，会打一条 ERROR 日志并丢弃该回调。
 - **生命周期**：每个事件对每个回调各启动一个 `drogon::async_run` 任务，任务帧里各拷贝一份回调和事件。所以回调 lambda 的捕获（例如 `bot`）一直存活到该任务结束。
 - **异常**：回调抛出的异常由库捕获并打 ERROR 日志，不影响其他回调和后续事件。`AsyncTask` 里未捕获的异常会直接 `std::terminate`（`coroutine.h:397-401`）。
-- **线程**：回调在收到该请求的 IO 线程上开始运行。在回调里调用 `OneBot` 的方法时，请求也在这个线程的事件循环上发出，回调恢复后仍在同一线程。
-- 没有配置 `event_path` 时调用 `On*`，会打一条 WARN 日志，回调永远不会运行。
+- **线程**：回调在收到该请求或该反向 WebSocket 连接的 IO 线程上开始运行。在回调里调用 `OneBot` 的方法后，回调恢复时仍在同一线程。走 HTTP 时，请求也在这个线程的事件循环上发出。
+- `event_path` 和 `ws_path` 都没有配置时调用 `On*`，会打一条 WARN 日志，回调永远不会运行。
+
+## 反向 WebSocket
+
+设置了 `ws_path` 时，OneBot 实现作为 WebSocket 客户端连接插件（OneBot v11 标准的 `ws-reverse.md`），保持连接，断开后重连。事件和动作调用共用这一条连接。
+
+路由在 drogon 接受连接之前检查升级请求：
+
+| 情况 | 状态码 |
+|---|---|
+| 设置了 `X-Client-Role`，但不是 `Universal` | 400 |
+| 设置了 access token，但没有 `Authorization` | 401 |
+| `Authorization` 不是 `Bearer <access token>` | 403 |
+| 其他 | 101，连接建立 |
+
+- 标准里分开的 `API` 和 `Event` 客户端会被拒绝；NapCat 总是以 `Universal` 连接。插件会记录每条连接的 `X-Self-ID`。
+- 同一时间只保持一条连接。新连接到来时关闭当前连接，关闭码 1000，原因 `replaced by a new connection`，这样失效的旧连接不会挡住 NapCat 的重连。因此插件只服务一个机器人账号：两个 NapCat 实例连同一个 `ws_path` 时，每次重连都会互相替换。
+- 事件的 JSON 与 HTTP POST 上报相同，但没有签名，因为标准在 WebSocket 上不签名；它们运行同一批回调。
+- 没有 `base_url` 时，`OneBot` 客户端把每次调用以 `{"action": ..., "params": ..., "echo": ...}` 发到打开着的连接上，并按 `echo` 匹配响应：
+  - 没有打开着的连接时，调用立即以 `Connection` 失败。
+  - 响应到达之前连接关闭或被替换时，调用以 `Connection` 失败。
+  - `timeout` 内没有响应时，调用以 `Timeout` 失败，迟到的响应被丢弃。`timeout` 为 0 时一直等到连接关闭。
+- NapCat 通过 WebSocket 应答失败的动作时，使用标准的 WebSocket retcode：参数校验失败为 1400（HTTP 上为 400），动作不存在为 1404，动作抛异常为 1200（HTTP 上二者都是 200）。它们都是 `Action` 错误。
+- 客户端发来的消息超过 app 的 `client_max_websocket_message_size`（默认 128 KiB）时，drogon 会关闭连接，并打印 `The size of the WebSocket message is too large!`。NapCat 把每个响应作为一条消息发送，例如大群的全部成员，或 base64 编码的语音。请在 config.json 的 `app` 段调大这个限制，例如 `"client_max_websocket_message_size": "64M"`；NapCat 自己接受最大 50 MB 的消息。
+- drogon 每 30 秒发送一次 WebSocket ping，NapCat 会应答。
+- 不支持 NapCat 的流式动作（一次调用回多条消息）：第一条消息就结束这次调用。
 
 ## 错误处理
 
@@ -329,26 +393,27 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 
 | `ErrorKind` | 含义 | `status_code` | `retcode` | `body` |
 |---|---|---|---|---|
-| `Connection` | 没有收到响应：DNS、TLS、连接被拒等 | 0 | 0 | 空 |
+| `Connection` | 没有收到响应：DNS、TLS、连接被拒等；或者没有打开着的反向 WebSocket 连接，或它先关闭了 | 0 | 0 | 空 |
 | `Timeout` | 在 `timeout` 秒内没有收到响应 | 0 | 0 | 空 |
-| `Status` | 非 2xx：未带 token（401）、token 不符（NapCat 为 403）、动作不存在（404）等 | HTTP 状态码 | 0 | 原始响应体 |
-| `ResponseValidation` | 2xx 响应不是 JSON、没有 `status` 字符串或 `status` 未知；或类型化动作的 `data` 缺必需字段或字段类型不对 | 0 | 0 | 响应内容，或 `data` |
+| `Status` | 非 2xx，仅限 HTTP：未带 token（401）、token 不符（NapCat 为 403）、动作不存在（404）等 | HTTP 状态码 | 0 | 原始响应体 |
+| `ResponseValidation` | 2xx 响应不是 JSON，或响应没有 `status` 字符串或 `status` 未知；或类型化动作的 `data` 缺必需字段或字段类型不对 | 0 | 0 | 响应内容，或 `data` |
 | `Action` | 响应的 `status` 为 `failed` | 0 | 响应的 `retcode` | 响应内容 |
 
 - `status` 为 `ok` 或 `async` 都算成功；`async` 时 `data` 为 null，执行结果无法获知。
 - `message` 会带上响应里的 `message`，为空时用 `wording`。这两个字段是 NapCat 等实现的扩展，v11 标准只有 `status`、`retcode`、`data`。
-- NapCat 对不存在的动作返回 HTTP 200、`status` 为 `failed`、`retcode` 200，因此是 `Action` 错误而不是 `Status` 404。
+- NapCat 通过 HTTP 对不存在的动作返回 HTTP 200、`status` 为 `failed`、`retcode` 200，因此是 `Action` 错误而不是 `Status` 404。通过反向 WebSocket 时 retcode 为 1404，其他情况见“反向 WebSocket”一节。
 - 在 Windows 上，连接被拒要约 2 秒才报告，因为系统会先重试连接。`timeout` 比这更短时，请求会以 `Timeout` 而不是 `Connection` 失败。Linux 上连接被拒会立即失败。
 
 ## 线程与事件循环
 
 - 只提供协程接口。drogon 文档建议优先使用异步接口或协程，同步 API 会阻塞 IO 线程，在 client 所在的 loop 上同步等待还会死锁。
 - `HttpTransport::Call` 为每个请求在调用线程的事件循环上新建 `HttpClient`（调用线程没有 loop 时用主 loop），并在响应到达前一直留在协程帧里。drogon 的 `HttpClient` 默认 pipelining 深度为 0，共享一个 client 会让并发请求串行执行。
+- `ReverseWebSocket::Call` 可以在任何线程上调用。它在打开着的连接上发出请求，在调用线程的事件循环（或主 loop）上计时超时，也在那里恢复调用方，所以无论走哪种传输，协程都在自己的线程上恢复。
 - 协程按值接收参数。每个动作方法构造请求体后，返回 `details::call_and_read` 或 `details::call_and_discard` 的任务，transport 作为协程参数进入它们的协程帧，所以即使 `OneBot` 在任务开始前或请求途中被销毁，请求也能完成。
 
 ## 已知限制
 
-- 只实现了 HTTP API 和 HTTP POST 上报，没有正向 WebSocket 和反向 WebSocket。
+- 没有正向 WebSocket。反向 WebSocket 只接受 `Universal` 客户端，同一时间只保持一条连接，因此只服务一个机器人账号，也不支持 NapCat 的流式动作。
 - 不支持上报响应里的快速操作。
 - 类型化动作见“调用动作”一节的表格，其余动作先用 `CallAction`。
 - `set_group_anonymous` 和 `set_group_anonymous_ban` 没有类型化方法，因为 NapCat 没有注册这两个动作。
@@ -368,8 +433,9 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 
 | 程序 | 覆盖内容 |
 |---|---|
-| `test_config` | 不启动 app，直接调用 `initAndStart`：必填项、两个 `_env` 的读取与报错、`event_path` 校验、没有 `secret_env` 的事件路由打出的 WARN 日志，以及仓库里的 config.json 能通过校验。 |
+| `test_config` | 不启动 app，直接调用 `initAndStart`：必填项（`base_url` 或 `ws_path`）、两个 `_env` 的读取与报错、`event_path` 和 `ws_path` 校验、没有 `secret_env` 的事件路由和没有 `access_token_env` 的 WebSocket 路由打出的 WARN 日志，以及仓库里的 config.json 能通过校验。 |
 | `test_actions` | 假的 NapCat HTTP API。`CallAction` 的请求体、`Authorization`、`base_url` 路径前缀；`async`；全部五种 `ErrorKind`（`failed`、只有 `wording`、404、403、非 JSON、无 `status`、未知 `status`、超时、连接失败）；在 `OneBot` 销毁之后才 `co_await` 的任务；类型化动作在 NapCat 形状的 `data` 下成功、`data` 缺字段或字段类型不对、`Action` 错误，以及 `no_cache` 和 `send_msg` 的目标只在设置时发送。 |
 | `test_events` | 带签名的事件路由。RFC 2202 向量校验测试自带的 HMAC；用 Python 独立算出的 NapCat 签名；大写签名；字符串 ID 的群消息；401、403、400 各种拒收且回调不运行；四种事件的分发；类型化的通知详情，以及缺少类型字段的通知；丢弃 `message_sent`；多个回调都运行；回调抛异常后服务继续；应答不等慢回调；开始监听后才注册的回调被丢弃。 |
 | `test_events_unsigned` | 去掉 `secret_env` 的事件路由：接受无签名事件，忽略任意 `X-Signature`。 |
+| `test_reverse_ws` | 假的 NapCat 按 NapCat WebSocket 客户端的方式连接 `ws_path`，config.json 去掉 `base_url` 后加载。握手的 400、401、403 拒绝；连接上各类事件的分发；丢弃坏消息而连接保持打开；通过连接调用类型化动作和原始动作，乱序响应按 `echo` 匹配；带 WebSocket retcode 的 `Action` 错误，以及格式不对的响应；超时；没有连接；调用等待期间连接关闭或被替换；超过 drogon 默认 128 KiB 限制的响应；消息回调通过连接回复并在自己的 loop 上恢复。 |
 | `test_segments` | 不启动 app：每个 `MessageSegment` 函数构造的消息段，包括以字符串发送的 ID，以及混合构造和手写消息段的消息。 |

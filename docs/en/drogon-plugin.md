@@ -2,20 +2,22 @@
 
 English · [简体中文](../zh-CN/drogon-plugin.md)
 
-This page describes how to add drogon-onebot to a drogon app as a plugin, its configuration, lifecycle, and usage, and the design constraints that follow from drogon's threading model. The protocol is OneBot v11, and the library implements two parts:
+This page describes how to add drogon-onebot to a drogon app as a plugin, its configuration, lifecycle, and usage, and the design constraints that follow from drogon's threading model. The protocol is OneBot v11, and the library implements three parts:
 
 - Calling actions: the HTTP API, through the `OneBot` client.
 - Receiving events: HTTP POST reporting, through the event route that the plugin registers.
+- Both over one connection: the reverse WebSocket, through the WebSocket route that the plugin registers and that the OneBot implementation connects to.
 
 The reference OneBot implementation is NapCat.
 
 ## Overview
 
-`drogon_onebot::OneBotClient` derives from `drogon::Plugin<OneBotClient>` and does three things:
+`drogon_onebot::OneBotClient` derives from `drogon::Plugin<OneBotClient>` and does four things:
 
 1. When drogon starts, it reads and validates its configuration (`OneBotConfig`) from config.json.
 2. When `event_path` is set, it registers a `POST` route at that path. The route receives the events that the OneBot implementation reports and dispatches them to the callbacks registered with `OnMessage` and the other `On*` methods.
-3. `NewOneBotClient()` returns a `OneBot` client bound to that configuration. The client calls actions, for example to reply to a message.
+3. When `ws_path` is set, it registers a WebSocket route at that path. The OneBot implementation connects to it, pushes events over the connection to the same callbacks, and answers the actions sent to it.
+4. `NewOneBotClient()` returns a `OneBot` client bound to that configuration. The client calls actions, for example to reply to a message: over the HTTP API at `base_url`, or over the reverse WebSocket without one.
 
 The `OneBot` method names map one to one onto OneBot v11 action names (`SendGroupMsg` ↔ `send_group_msg`), and the methods that register callbacks take their names from aiocqhttp (`on_message` ↔ `OnMessage`):
 
@@ -58,19 +60,38 @@ target_link_libraries(app PRIVATE drogon-onebot::drogon-onebot)
 ]
 ```
 
+With the reverse WebSocket, one route carries both directions, and `base_url` can go:
+
+```json
+"app": {
+    "client_max_websocket_message_size": "64M"
+},
+"plugins": [
+    {
+        "name": "drogon_onebot::OneBotClient",
+        "config": {
+            "ws_path": "/onebot/ws",
+            "access_token_env": "ONEBOT_ACCESS_TOKEN"
+        }
+    }
+]
+```
+
 | Key | Required | Description |
 |---|---|---|
-| `base_url` | Yes | The HTTP API address of the OneBot implementation, optionally with a path prefix. Actions go to `<base_url>/<action>`. |
-| `access_token_env` | No | **Name of the environment variable** that holds the access token. Without it, no `Authorization` header is sent. |
-| `event_path` | No | Route path that receives events. It must start with `/`. Without it, no route is registered, and the plugin can send but not receive. |
+| `base_url` | Unless `ws_path` is set | The HTTP API address of the OneBot implementation, optionally with a path prefix. Actions go to `<base_url>/<action>`. Without it, actions go over the reverse WebSocket connection. |
+| `access_token_env` | No | **Name of the environment variable** that holds the access token. Without it, no `Authorization` header is sent or checked; with `ws_path` set, `initAndStart` then logs a WARN line, because anyone who can reach the listener can connect. |
+| `event_path` | No | Route path that receives events. It must start with `/`. Without it, no route is registered, and without `ws_path` either, the plugin can send but not receive. |
 | `secret_env` | No | **Name of the environment variable** that holds the secret that signs reported events. Without it, signatures are not checked and unsigned events are accepted; with `event_path` set, `initAndStart` then logs a WARN line, because anyone who can reach the listener can post events. |
+| `ws_path` | No | Route path of the reverse WebSocket, which the OneBot implementation connects to. It must start with `/`. Without it, no WebSocket route is registered. |
 
 - Neither secret goes into config.json. Both are read only from environment variables.
-- The access token is sent as `Authorization: Bearer <token>` and must match the token of the OneBot implementation's HTTP API.
+- The access token is sent to the HTTP API as `Authorization: Bearer <token>`, and connections to `ws_path` must present it the same way. It must match the token of the OneBot implementation's HTTP server and reverse WebSocket client.
 - The secret checks the `X-Signature: sha1=<hex of HMAC-SHA1(secret, body)>` header of each event.
+- With `ws_path` set, raise `client_max_websocket_message_size` in the `app` section, as above; see "Reverse WebSocket".
 - `initAndStart` throws `std::invalid_argument` in any of these cases:
-  - `base_url` is missing or empty;
-  - `event_path` does not start with `/`;
+  - both `base_url` and `ws_path` are missing or empty;
+  - `event_path` or `ws_path` does not start with `/`;
   - `access_token_env` or `secret_env` is set, but the environment variable it names is unset or empty.
 
   The exception propagates out of `app().run()`. If nothing catches it, the program terminates.
@@ -100,12 +121,27 @@ NapCat's OneBot configuration (`onebot11_<QQ number>.json`) needs two network en
   - The HTTP client's setting applies to reported events. With `string`, `message` is a CQ-code string, and the event route rejects the event with 400.
   - The HTTP server's setting applies to the `message` that `get_msg` returns. With `string`, `GetMsg` fails with `ResponseValidation`.
 
+For the reverse WebSocket, a single WebSocket client replaces both:
+
+```json
+"network": {
+    "websocketClients": [
+        { "name": "bot", "enable": true, "url": "ws://127.0.0.1:8080/onebot/ws", "messagePostFormat": "array", "reportSelfMessage": false, "reconnectInterval": 5000, "heartInterval": 30000, "token": "<value of ONEBOT_ACCESS_TOKEN>" }
+    ]
+}
+```
+
+- `websocketClients[].token` is the access token. NapCat sends it in the handshake as `Authorization: Bearer <token>`, so it corresponds to `access_token_env`. NapCat sends the header even when its token is empty, which the route rejects with 403 once an access token is set.
+- `messagePostFormat` applies to the events and to the `message` that `get_msg` returns on this connection, so set it to `array` here too.
+- When the connection drops, NapCat reconnects every `reconnectInterval` milliseconds. On each new connection it sends a lifecycle `connect` event, and then a heartbeat every `heartInterval` milliseconds; 0 turns heartbeats off.
+- To keep calling actions over HTTP while events arrive over the WebSocket, keep the HTTP server and `base_url` as well.
+
 ## Lifecycle
 
 ```
 app().loadConfigFile("config.json")       reads the plugins section
 app().run()
- ├─ OneBotClient::initAndStart(config)    parses and validates the config, registers the event_path route, throws on failure
+ ├─ OneBotClient::initAndStart(config)    parses and validates the config, registers the event_path and ws_path routes, throws on failure
  ├─ routers initialized                   no more routes can be registered after this
  ├─ beginning advices                     getPlugin<OneBotClient>() works from here on; register callbacks here
  ├─ startListening()                      each IO loop starts listening asynchronously, and events start to arrive
@@ -114,7 +150,8 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 ```
 
 - `getPlugin` returns a `OneBotClient*` that drogon owns. Don't delete it.
-- The event route is registered in `initAndStart`. drogon initializes plugins before routers (`HttpAppFrameworkImpl.cc:663-671`), and drogon's own `PromExporter` plugin registers its route the same way (`PromExporter.cc:18`).
+- The routes are registered in `initAndStart`. drogon initializes plugins before routers (`HttpAppFrameworkImpl.cc:663-671`), and drogon's own `PromExporter` plugin registers its route the same way (`PromExporter.cc:18`).
+- drogon finds WebSocket controllers and middlewares by class name when it initializes the routers. For `ws_path`, the plugin registers its own instances of `details::ReverseWsController` and of `details::ReverseWsHandshake`, the middleware that checks the handshake, with `registerController` and `registerMiddleware`.
 - With static linking, the app's code must reference `OneBotClient` (one call to `getPlugin<drogon_onebot::OneBotClient>()` is enough). Otherwise the linker drops `onebot_client.o`, and drogon prints `Plugin drogon_onebot::OneBotClient undefined!` and keeps running.
 
 ## Calling actions
@@ -122,6 +159,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 - `OneBot` is a value handle whose only shared state is one `std::shared_ptr<details::Transport>`. A copy only increments a reference count, so pass it into coroutines by value.
 - Each method reads its parameters and gives the returned task its own share of the transport before it returns. The task starts only when awaited, but it needs neither the `OneBot` nor the parameters to stay alive until then.
 - Every method returns `drogon::Task<Result<T>>`, where `Result<T>` is `std::expected<T, Error>`. A failed action **does not throw**.
+- Without `base_url`, the client sends each action over the reverse WebSocket connection that is open when the call starts, so one `OneBot` keeps working across NapCat's reconnects; see "Reverse WebSocket".
 - Messages use array format: `Message` is `std::vector<MessageSegment>`, and each segment is a `type` plus a `Json::Value data`. CQ-code strings and `auto_escape` are not supported yet.
 
 | Method | Action | Returns |
@@ -275,7 +313,8 @@ The plugin dispatches by `post_type`. Each of the four methods appends a callbac
 - NapCat sometimes sends `user_id` and `group_id` as strings. They are parsed as numbers.
 - A request event without `user_id` or `flag`, or a group request without `group_id`, gets 400. NapCat reports only friend requests that are unread, that the bot did not send, and that are not decided yet.
 - For a group request, `sub_type` `add` is a request to join, where `user_id` is the requester, and `invite` invites the bot account, where `user_id` is the inviter. NapCat also reports as `add` a member's invitation of someone else that needs an admin's approval.
-- A heartbeat has `status`, a `Status` like the one that `GetStatus` returns, and `interval`, the milliseconds until the next heartbeat; one without them gets 400. NapCat sends meta events only over WebSocket, so with HTTP POST reporting, `OnMetaEvent` never runs for it.
+- A heartbeat has `status`, a `Status` like the one that `GetStatus` returns, and `interval`, the milliseconds until the next heartbeat; one without them gets 400. NapCat sends meta events only over WebSocket: over the reverse WebSocket, a lifecycle `connect` event on each connection and then its heartbeats. With HTTP POST reporting, `OnMetaEvent` never runs for NapCat.
+- Over the reverse WebSocket, there is no response to carry a status. An event that the route would reject with 400 is logged at WARN level and dropped, and other `post_type` values are dropped too.
 
 ### Notice details
 
@@ -317,11 +356,36 @@ The route answers first and runs the callbacks afterwards. NapCat keeps its repo
 
 ### Callback rules
 
-- **When to register**: only after the plugin is initialized and before the listeners start. That means in a beginning advice, or in `initAndStart` of another plugin that lists this one under `dependencies`. The route reads the callback lists on IO threads without a lock, so once the listeners have started, `On*` logs an ERROR line and drops the callback.
+- **When to register**: only after the plugin is initialized and before the listeners start. That means in a beginning advice, or in `initAndStart` of another plugin that lists this one under `dependencies`. The routes read the callback lists on IO threads without a lock, so once the listeners have started, `On*` logs an ERROR line and drops the callback.
 - **Lifetime**: each event starts one `drogon::async_run` task per callback, and each task frame holds its own copy of the callback and the event. So the captures of a callback lambda (such as `bot`) live until that task ends.
 - **Exceptions**: the library catches any exception that a callback throws and logs it at ERROR level. Other callbacks and later events are not affected. An exception left uncaught in an `AsyncTask` calls `std::terminate` directly (`coroutine.h:397-401`).
-- **Threads**: a callback starts running on the IO thread that received the request. When the callback calls a `OneBot` method, the request is sent on that thread's event loop too, and the callback resumes on the same thread.
-- Calling `On*` when `event_path` is not configured logs a WARN line, and the callback never runs.
+- **Threads**: a callback starts running on the IO thread that received the request, or the reverse WebSocket connection. When the callback calls a `OneBot` method, it resumes on the same thread. Over HTTP, the request is sent on that thread's event loop too.
+- Calling `On*` when neither `event_path` nor `ws_path` is configured logs a WARN line, and the callback never runs.
+
+## Reverse WebSocket
+
+With `ws_path` set, the OneBot implementation connects to the plugin as a WebSocket client (`ws-reverse.md` in the OneBot v11 standard), keeps the connection open, and reconnects when it drops. Events and action calls share the one connection.
+
+The route checks the upgrade request before drogon accepts the connection:
+
+| Case | Status |
+|---|---|
+| `X-Client-Role` is set but is not `Universal` | 400 |
+| An access token is set, but `Authorization` is missing | 401 |
+| `Authorization` is not `Bearer <access token>` | 403 |
+| Otherwise | 101, the connection opens |
+
+- The standard's separate `API` and `Event` clients are rejected; NapCat always connects as `Universal`. The plugin logs the `X-Self-ID` of each connection.
+- One connection is open at a time. A new connection closes the open one, with close code 1000 and the reason `replaced by a new connection`, so a stale connection never blocks NapCat's reconnect. The plugin therefore serves one bot account: two NapCat instances connected to the same `ws_path` replace each other at every reconnect.
+- Events arrive in the same JSON as HTTP POST reports, unsigned, because the standard has no signature over WebSocket, and run the same callbacks.
+- Without `base_url`, the `OneBot` client sends each call as `{"action": ..., "params": ..., "echo": ...}` over the open connection and matches the response by its `echo`:
+  - With no connection open, the call fails at once with `Connection`.
+  - When the connection closes or is replaced before the response arrives, the call fails with `Connection`.
+  - Without a response within `timeout`, the call fails with `Timeout`, and a late response is dropped. With `timeout` 0, the call waits until the connection closes.
+- NapCat answers a failed action over WebSocket with the standard's WebSocket retcodes: 1400 when its parameter check fails (400 over HTTP), 1404 for an unknown action, and 1200 when the action throws (both 200 over HTTP). All of them are `Action` errors.
+- drogon closes a WebSocket connection when a message from the client exceeds the app's `client_max_websocket_message_size`, 128 KiB by default, and logs `The size of the WebSocket message is too large!`. NapCat sends each response as one message, for example every member of a large group, or a voice as base64. Raise the limit in the `app` section of config.json, for example `"client_max_websocket_message_size": "64M"`; NapCat itself accepts messages of up to 50 MB.
+- drogon sends a WebSocket ping every 30 seconds, which NapCat answers.
+- NapCat's streaming actions, which answer one call with several messages, are not supported: the first message completes the call.
 
 ## Error handling
 
@@ -329,26 +393,27 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 
 | `ErrorKind` | Meaning | `status_code` | `retcode` | `body` |
 |---|---|---|---|---|
-| `Connection` | No response arrived: DNS, TLS, connection refused, and so on | 0 | 0 | Empty |
+| `Connection` | No response arrived: DNS, TLS, connection refused, and so on; or no reverse WebSocket connection was open, or it closed first | 0 | 0 | Empty |
 | `Timeout` | No response within `timeout` seconds | 0 | 0 | Empty |
-| `Status` | Non-2xx: no token (401), wrong token (403 from NapCat), unknown action (404), and so on | HTTP status code | 0 | Raw response body |
-| `ResponseValidation` | A 2xx response that is not JSON, has no `status` string, or has an unknown `status`; or a typed action's `data` lacks a required field or has a field of the wrong type | 0 | 0 | Response content, or `data` |
+| `Status` | Non-2xx, over HTTP only: no token (401), wrong token (403 from NapCat), unknown action (404), and so on | HTTP status code | 0 | Raw response body |
+| `ResponseValidation` | A 2xx response that is not JSON, or a response that has no `status` string, or has an unknown `status`; or a typed action's `data` lacks a required field or has a field of the wrong type | 0 | 0 | Response content, or `data` |
 | `Action` | The response's `status` is `failed` | 0 | The response's `retcode` | Response content |
 
 - A `status` of `ok` or `async` counts as success. With `async`, `data` is null, and the result of the action cannot be known.
 - `message` includes the response's `message`, or its `wording` when `message` is empty. Both fields are extensions from NapCat and other implementations; the v11 standard only has `status`, `retcode`, and `data`.
-- NapCat answers an unknown action with HTTP 200, `status` `failed`, and `retcode` 200, so it is an `Action` error, not a `Status` 404.
+- NapCat answers an unknown action over HTTP with HTTP 200, `status` `failed`, and `retcode` 200, so it is an `Action` error, not a `Status` 404. Over the reverse WebSocket, its retcode is 1404; the "Reverse WebSocket" section lists the others.
 - On Windows, a refused connection takes about 2 seconds to report, because the system retries the connect first. With a `timeout` shorter than that, the request fails with `Timeout` instead of `Connection`. On Linux, a refused connection fails immediately.
 
 ## Threads and event loops
 
 - Only coroutine APIs are provided. drogon's documentation recommends asynchronous APIs or coroutines. A synchronous API blocks the IO thread, and waiting synchronously on the loop that the client runs on also deadlocks.
 - `HttpTransport::Call` creates a new `HttpClient` for each request on the calling thread's event loop (or on the main loop when the calling thread runs no loop), and keeps it in the coroutine frame until the response arrives. drogon's `HttpClient` defaults to pipelining depth 0, so sharing one client would serialize concurrent requests.
+- `ReverseWebSocket::Call` may run on any thread. It sends the request on the open connection, runs its timeout on the calling thread's event loop (or on the main loop), and resumes the caller there too, so a coroutine resumes on its own thread over either transport.
 - Coroutines take their parameters by value. Each action method builds the request body and returns the task of `details::call_and_read` or `details::call_and_discard`, which takes the transport as a coroutine parameter, so a request completes even if the `OneBot` is destroyed before the task starts or while the request is in flight.
 
 ## Known limitations
 
-- Only the HTTP API and HTTP POST reporting are implemented. There is no forward or reverse WebSocket.
+- There is no forward WebSocket. The reverse WebSocket accepts only `Universal` clients and one connection at a time, so it serves one bot account, and it does not support NapCat's streaming actions.
 - Quick operations in the report response are not supported.
 - The typed actions are listed in the table under "Calling actions". Use `CallAction` for the other actions for now.
 - `set_group_anonymous` and `set_group_anonymous_ban` have no typed method, because NapCat does not register them.
@@ -368,8 +433,9 @@ All tests run offline. The tests that need a server use the same app as a stand-
 
 | Program | What it covers |
 |---|---|
-| `test_config` | Calls `initAndStart` directly without starting the app: the required key, reading both `_env` keys and their errors, `event_path` validation, the WARN line for an event route without `secret_env`, and that the config.json in the repository passes validation. |
+| `test_config` | Calls `initAndStart` directly without starting the app: the required keys (`base_url` or `ws_path`), reading both `_env` keys and their errors, `event_path` and `ws_path` validation, the WARN lines for an event route without `secret_env` and a WebSocket route without `access_token_env`, and that the config.json in the repository passes validation. |
 | `test_actions` | A fake NapCat HTTP API. `CallAction`'s request body, `Authorization`, and `base_url` path prefix; `async`; all five `ErrorKind`s (`failed`, `wording` only, 404, 403, non-JSON, no `status`, unknown `status`, timeout, connection failure); tasks awaited after their `OneBot` is gone; and for the typed actions, success with `data` shaped like NapCat's, missing or mistyped `data` fields, `Action` errors, and `no_cache` and the `send_msg` targets being sent only when set. |
 | `test_events` | The signed event route. RFC 2202 vectors check the test's own HMAC; a NapCat signature computed independently with Python; uppercase signatures; a group message with string IDs; the 401, 403, and 400 rejections, with no callback run; dispatch of all four event types; typed notice details, and a notice missing a typed field; `message_sent` dropped; several callbacks all run; the service continuing after a callback throws; the response not waiting for a slow callback; a callback registered after the listeners started being dropped. |
 | `test_events_unsigned` | The event route without `secret_env`: unsigned events are accepted, and any `X-Signature` is ignored. |
+| `test_reverse_ws` | A fake NapCat that connects to `ws_path` the way NapCat's WebSocket client does, with config.json loaded without `base_url`. The 400, 401, and 403 handshake rejections; events of each kind over the connection; bad messages dropped while the connection stays open; typed and raw actions over the connection, with responses matched by `echo` out of order; `Action` errors with a WebSocket retcode, and malformed responses; timeouts; no connection; a call pending while the connection closes or is replaced; a response above drogon's default limit of 128 KiB; and a message callback that replies over the connection and resumes on its own loop. |
 | `test_segments` | Without starting the app: the segments that each `MessageSegment` function builds, including IDs sent as strings, and a message that mixes built and hand-written segments. |

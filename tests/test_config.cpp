@@ -97,12 +97,15 @@ namespace {
 
 } // namespace
 
-DROGON_TEST(RequiresBaseUrl) {
-    CHECK(rejection(Json::Value{ Json::objectValue }).contains("non-empty base_url"));
+DROGON_TEST(RequiresBaseUrlOrWsPath) {
+    CHECK(rejection(Json::Value{ Json::objectValue }).contains("non-empty base_url or ws_path"));
 
     auto config{ minimal_config() };
     config["base_url"] = "";
-    CHECK(rejection(config).contains("non-empty base_url"));
+    CHECK(rejection(config).contains("non-empty base_url or ws_path"));
+
+    config["ws_path"] = test_support::WS_PATH;
+    CHECK(rejection(config) == "(accepted)");
 }
 
 DROGON_TEST(ReadsMinimalConfig) {
@@ -113,6 +116,7 @@ DROGON_TEST(ReadsMinimalConfig) {
     CHECK(config.access_token.empty());
     CHECK(config.event_path.empty());
     CHECK(config.secret.empty());
+    CHECK(config.ws_path.empty());
 }
 
 DROGON_TEST(ReadsAccessTokenFromEnv) {
@@ -153,6 +157,12 @@ DROGON_TEST(RejectsRelativeEventPath) {
     CHECK(rejection(config).contains("event_path must start with /"));
 }
 
+DROGON_TEST(RejectsRelativeWsPath) {
+    auto config{ minimal_config() };
+    config["ws_path"] = "onebot/ws";
+    CHECK(rejection(config).contains("ws_path must start with /"));
+}
+
 DROGON_TEST(WarnsAboutUnsignedEventRoute) {
     auto config{ minimal_config() };
     CHECK(!init_log(config).contains("unsigned"));
@@ -166,16 +176,31 @@ DROGON_TEST(WarnsAboutUnsignedEventRoute) {
     test_support::unset_env(test_support::SECRET_ENV);
 }
 
+DROGON_TEST(WarnsAboutUnauthenticatedWsRoute) {
+    auto config{ minimal_config() };
+    CHECK(!init_log(config).contains("accepts connections"));
+
+    config["ws_path"] = test_support::WS_PATH;
+    CHECK(init_log(config).contains("ws_path /onebot/ws accepts connections from anyone"));
+
+    test_support::set_env(TOKEN_ENV, "token-value");
+    config["access_token_env"] = TOKEN_ENV;
+    CHECK(!init_log(config).contains("accepts connections"));
+    test_support::unset_env(TOKEN_ENV);
+}
+
 DROGON_TEST(AcceptsTrackedConfigJson) {
     test_support::set_env(test_support::SECRET_ENV, test_support::SECRET);
     auto const root{ test_support::read_config() };
     REQUIRE(root["plugins"][0]["name"].asString() == "drogon_onebot::OneBotClient");
+    CHECK(root["app"]["client_max_websocket_message_size"].asString() == "64M");
 
     drogon_onebot::OneBotClient plugin{};
     plugin.initAndStart(root["plugins"][0]["config"]);
     CHECK(plugin.Config().base_url == test_support::SERVER_URL);
     CHECK(plugin.Config().event_path == test_support::EVENT_PATH);
     CHECK(plugin.Config().secret == test_support::SECRET);
+    CHECK(plugin.Config().ws_path == test_support::WS_PATH);
     test_support::unset_env(test_support::SECRET_ENV);
 }
 

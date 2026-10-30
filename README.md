@@ -2,10 +2,11 @@
 
 English · [简体中文](README.zh-CN.md)
 
-A [OneBot v11](https://github.com/botuniverse/onebot-11) plugin library for [drogon](https://github.com/drogonframework/drogon), used as a plugin by other drogon apps. It implements two parts:
+A [OneBot v11](https://github.com/botuniverse/onebot-11) plugin library for [drogon](https://github.com/drogonframework/drogon), used as a plugin by other drogon apps. It implements three parts:
 
 - **Calling actions**: the OneBot v11 HTTP API.
 - **Receiving events**: HTTP POST reporting.
+- **Both over one connection**: the reverse WebSocket, which the OneBot implementation connects to.
 
 Its behavior is tested against [NapCat](https://github.com/NapNeko/NapCatQQ).
 
@@ -123,7 +124,9 @@ NapCat needs two network endpoints:
 - An HTTP server, which this library calls actions on. Its `token` matches `ONEBOT_ACCESS_TOKEN`.
 - An HTTP client whose `url` points at `event_path`, whose `token` matches `ONEBOT_SECRET`, and whose `messagePostFormat` is `array`.
 
-The [plugin guide](docs/en/drogon-plugin.md) covers the configuration keys, the event types, when to register callbacks and how long they live, the error kinds, and the threading model.
+With the reverse WebSocket instead, set `ws_path` in place of `base_url` and `event_path`, and give NapCat one WebSocket client whose `url` points at `ws_path`, whose `token` matches `ONEBOT_ACCESS_TOKEN`, and whose `messagePostFormat` is `array`. Then raise `client_max_websocket_message_size` in the `app` section of config.json, because drogon closes a connection on any message above 128 KiB by default.
+
+The [plugin guide](docs/en/drogon-plugin.md) covers the configuration keys, the reverse WebSocket, the event types, when to register callbacks and how long they live, the error kinds, and the threading model.
 
 ## Development and documentation
 

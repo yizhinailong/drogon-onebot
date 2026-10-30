@@ -19,6 +19,8 @@
 #include "details/action_call.hpp"
 #include "details/event_receiver.hpp"
 #include "details/http_transport.hpp"
+#include "details/reverse_ws.hpp"
+#include "details/reverse_ws_route.hpp"
 
 namespace {
 
@@ -67,18 +69,25 @@ namespace {
 namespace drogon_onebot {
 
     /**
-     * @brief Create a client for the endpoint in `config`.
+     * @brief Create a client for the HTTP API in `config`.
      * @param config Endpoint settings; `access_token` may be empty for endpoints without auth.
      */
     OneBot::OneBot(OneBotConfig config)
         : m_transport{ std::make_shared<details::HttpTransport>(std::move(config)) } {}
 
     /**
+     * @brief Create a client that calls actions through `transport`.
+     * @param transport Transport to share, e.g. the plugin's reverse WebSocket.
+     */
+    OneBot::OneBot(std::shared_ptr<details::Transport> transport)
+        : m_transport{ std::move(transport) } {}
+
+    /**
      * @brief Call any action and await its `data` field.
      * @param params Action name and parameters, read before this returns.
      * @return Task yielding the response envelope's `data` (null for an `async` response), or why the action failed.
-     * @note The request runs on the calling thread's event loop (the main loop when the
-     * thread runs none), so the coroutine resumes on the thread that awaited it.
+     * @note The coroutine resumes on the calling thread's event loop (the main loop when the
+     * thread runs none). Over HTTP, the request also runs there.
      */
     auto OneBot::CallAction(
         CallActionParams params
@@ -87,11 +96,12 @@ namespace drogon_onebot {
     }
 
     /**
-     * @brief Read the settings from the plugin's `config` object and register the event route.
+     * @brief Read the settings from the plugin's `config` object and register the event routes.
      * @param config The plugin's `config` object from config.json.
-     * @throws std::invalid_argument If `base_url` is missing or empty, if
-     * `event_path` is set but does not start with `/`, or if `access_token_env`
-     * or `secret_env` names an unset or empty environment variable.
+     * @throws std::invalid_argument If both `base_url` and `ws_path` are missing
+     * or empty, if `event_path` or `ws_path` is set but does not start with `/`,
+     * or if `access_token_env` or `secret_env` names an unset or empty environment
+     * variable.
      */
     auto OneBotClient::initAndStart(Json::Value const& config) -> void {
         m_config = OneBotConfig{
@@ -99,12 +109,16 @@ namespace drogon_onebot {
             .access_token = read_secret_env(config.get("access_token_env", "").asString()),
             .event_path = config.get("event_path", "").asString(),
             .secret = read_secret_env(config.get("secret_env", "").asString()),
+            .ws_path = config.get("ws_path", "").asString(),
         };
-        if (m_config.base_url.empty()) {
-            throw std::invalid_argument{ "drogon_onebot::OneBotClient: config needs a non-empty base_url" };
+        if (m_config.base_url.empty() && m_config.ws_path.empty()) {
+            throw std::invalid_argument{ "drogon_onebot::OneBotClient: config needs a non-empty base_url or ws_path" };
         }
         if (!m_config.event_path.empty() && !m_config.event_path.starts_with('/')) {
             throw std::invalid_argument{ "drogon_onebot::OneBotClient: event_path must start with /" };
+        }
+        if (!m_config.ws_path.empty() && !m_config.ws_path.starts_with('/')) {
+            throw std::invalid_argument{ "drogon_onebot::OneBotClient: ws_path must start with /" };
         }
 
         m_receiver = std::make_shared<details::EventReceiver>(m_config.secret);
@@ -132,6 +146,24 @@ namespace drogon_onebot {
                 "drogon_onebot::OneBotClient events"
             );
         }
+        if (!m_config.ws_path.empty()) {
+            if (m_config.access_token.empty()) {
+                LOG_WARN << "drogon_onebot::OneBotClient: ws_path " << m_config.ws_path << " accepts connections from anyone who can reach it; set access_token_env to check Authorization";
+            }
+            m_reverse_ws = std::make_shared<details::ReverseWebSocket>(m_config.ws_path, m_receiver);
+            // A WebSocket route, like the event route, can be added until the routers are
+            // initialized (HttpAppFrameworkImpl.cc:285-291). drogon then looks the controller
+            // and the middleware up by class name (HttpControllersRouter.cc:275-287,
+            // MiddlewaresFunction.cc:150-158) and finds the instances registered here.
+            drogon::app()
+                .registerController(std::make_shared<details::ReverseWsController>(m_reverse_ws))
+                .registerMiddleware(std::make_shared<details::ReverseWsHandshake>(m_config.access_token))
+                .registerWebSocketController(
+                    m_config.ws_path,
+                    details::ReverseWsController::classTypeName(),
+                    { drogon::Get, details::ReverseWsHandshake::classTypeName() }
+                );
+        }
     }
 
     /**
@@ -149,20 +181,24 @@ namespace drogon_onebot {
 
     /**
      * @brief Create a `OneBot` client for the configured endpoint.
-     * @return A new client; call only after drogon has initialized the plugin.
+     * @return A new client for the HTTP API at `base_url`, or for the reverse
+     * WebSocket without one; call only after drogon has initialized the plugin.
      */
     auto OneBotClient::NewOneBotClient() const -> OneBot {
+        if (m_config.base_url.empty()) {
+            return OneBot{ m_reverse_ws };
+        }
         return OneBot{ m_config };
     }
 
     /**
-     * @brief Run `handler` for every message event posted to `event_path`.
+     * @brief Run `handler` for every message event that arrives on `event_path` or `ws_path`.
      * @param handler Coroutine to run. Each event runs a copy of it, so its
      * captures stay alive until that run completes. An exception it throws is
      * logged and dropped.
      * @note Call only after drogon has initialized the plugin, and before the
      * listeners start: from a beginning advice, or from `initAndStart()` of a
-     * plugin that lists this one under `dependencies`. The route reads the
+     * plugin that lists this one under `dependencies`. The routes read the
      * handlers from IO threads without a lock, so once the listeners have
      * started, this logs an error and drops `handler`.
      */
@@ -173,7 +209,7 @@ namespace drogon_onebot {
     }
 
     /**
-     * @brief Run `handler` for every notice event posted to `event_path`.
+     * @brief Run `handler` for every notice event that arrives on `event_path` or `ws_path`.
      * @param handler Coroutine to run; see `OnMessage()` for its lifetime and exceptions.
      * @note Register handlers at the times that `OnMessage()` lists.
      */
@@ -184,7 +220,7 @@ namespace drogon_onebot {
     }
 
     /**
-     * @brief Run `handler` for every request event posted to `event_path`.
+     * @brief Run `handler` for every request event that arrives on `event_path` or `ws_path`.
      * @param handler Coroutine to run; see `OnMessage()` for its lifetime and exceptions.
      * @note Register handlers at the times that `OnMessage()` lists.
      */
@@ -195,9 +231,10 @@ namespace drogon_onebot {
     }
 
     /**
-     * @brief Run `handler` for every meta event posted to `event_path`.
+     * @brief Run `handler` for every meta event that arrives on `event_path` or `ws_path`.
      * @param handler Coroutine to run; see `OnMessage()` for its lifetime and exceptions.
-     * @note Register handlers at the times that `OnMessage()` lists.
+     * @note Register handlers at the times that `OnMessage()` lists. NapCat sends
+     * meta events, its lifecycle `connect` and heartbeats, only over WebSocket.
      */
     auto OneBotClient::OnMetaEvent(MetaEventHandler handler) -> void {
         if (acceptsHandler("OnMetaEvent")) {
@@ -215,8 +252,8 @@ namespace drogon_onebot {
             LOG_ERROR << "drogon_onebot::OneBotClient: " << method << " dropped a handler added after the listeners started; add handlers from a beginning advice";
             return false;
         }
-        if (m_config.event_path.empty()) {
-            LOG_WARN << "drogon_onebot::OneBotClient: " << method << " has no effect without event_path in the plugin config";
+        if (m_config.event_path.empty() && m_config.ws_path.empty()) {
+            LOG_WARN << "drogon_onebot::OneBotClient: " << method << " has no effect without event_path or ws_path in the plugin config";
         }
         return true;
     }
