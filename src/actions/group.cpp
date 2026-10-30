@@ -9,9 +9,9 @@
 #include <utility>
 #include <vector>
 
+#include "details/action_call.hpp"
 #include "details/field_reader.hpp"
 #include "details/json.hpp"
-#include "details/transport.hpp"
 #include "drogon_onebot/onebot_client.hpp"
 
 namespace {
@@ -34,6 +34,15 @@ namespace {
             return std::unexpected{ fields.Problem() };
         }
         return info;
+    }
+
+    /**
+     * @brief Read the `data` of `get_group_list`.
+     * @param data Array to read.
+     * @return The groups, or the first problem found, e.g. `data[1].group_name is missing`.
+     */
+    auto to_group_list(Json::Value const& data) -> std::expected<std::vector<drogon_onebot::GroupInfo>, std::string> {
+        return drogon_onebot::details::read_array<drogon_onebot::GroupInfo>(data, "data", to_group_info);
     }
 
     /**
@@ -65,6 +74,15 @@ namespace {
             return std::unexpected{ fields.Problem() };
         }
         return info;
+    }
+
+    /**
+     * @brief Read the `data` of `get_group_member_list`.
+     * @param data Array to read.
+     * @return The members, or the first problem found, e.g. `data[1].user_id is missing`.
+     */
+    auto to_group_member_list(Json::Value const& data) -> std::expected<std::vector<drogon_onebot::GroupMemberInfo>, std::string> {
+        return drogon_onebot::details::read_array<drogon_onebot::GroupMemberInfo>(data, "data", to_group_member_info);
     }
 
     /**
@@ -104,146 +122,23 @@ namespace {
         return drogon_onebot::details::read_array<drogon_onebot::GroupHonorMember>(list, key, to_group_honor_member);
     }
 
-} // namespace
-
-namespace drogon_onebot {
-
     /**
-     * @brief Call `get_group_info`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
-     * @return Task yielding the group, or why the action failed.
+     * @brief Read the `data` of `get_group_honor_info`.
+     * @param data Object to read.
+     * @return The honors, or the first problem found, e.g. `current_talkative.nickname is missing`.
      */
-    auto OneBot::GetGroupInfo(
-        GetGroupInfoParams params
-    ) const -> drogon::Task<Result<GroupInfo>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        Json::Value body{ Json::objectValue };
-        body["group_id"] = params.group_id;
-        if (params.no_cache) {
-            body["no_cache"] = *params.no_cache;
-        }
-        auto const data{ co_await transport->Call("get_group_info", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto info{ to_group_info(*data) };
-        if (!info) {
-            co_return std::unexpected{ details::invalid_data_error("get_group_info", info.error(), *data) };
-        }
-        co_return std::move(*info);
-    }
-
-    /**
-     * @brief Call `get_group_list`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
-     * @return Task yielding the groups the bot account is in, or why the action failed.
-     */
-    auto OneBot::GetGroupList(
-        GetGroupListParams params
-    ) const -> drogon::Task<Result<std::vector<GroupInfo>>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        Json::Value body{ Json::objectValue };
-        if (params.no_cache) {
-            body["no_cache"] = *params.no_cache;
-        }
-        auto const data{ co_await transport->Call("get_group_list", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto groups{ details::read_array<GroupInfo>(*data, "data", to_group_info) };
-        if (!groups) {
-            co_return std::unexpected{ details::invalid_data_error("get_group_list", groups.error(), *data) };
-        }
-        co_return std::move(*groups);
-    }
-
-    /**
-     * @brief Call `get_group_member_info`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
-     * @return Task yielding the group member, or why the action failed.
-     */
-    auto OneBot::GetGroupMemberInfo(
-        GetGroupMemberInfoParams params
-    ) const -> drogon::Task<Result<GroupMemberInfo>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        Json::Value body{ Json::objectValue };
-        body["group_id"] = params.group_id;
-        body["user_id"] = params.user_id;
-        if (params.no_cache) {
-            body["no_cache"] = *params.no_cache;
-        }
-        auto const data{ co_await transport->Call("get_group_member_info", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto info{ to_group_member_info(*data) };
-        if (!info) {
-            co_return std::unexpected{ details::invalid_data_error("get_group_member_info", info.error(), *data) };
-        }
-        co_return std::move(*info);
-    }
-
-    /**
-     * @brief Call `get_group_member_list`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
-     * @return Task yielding the group's members, or why the action failed.
-     */
-    auto OneBot::GetGroupMemberList(
-        GetGroupMemberListParams params
-    ) const -> drogon::Task<Result<std::vector<GroupMemberInfo>>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        Json::Value body{ Json::objectValue };
-        body["group_id"] = params.group_id;
-        if (params.no_cache) {
-            body["no_cache"] = *params.no_cache;
-        }
-        auto const data{ co_await transport->Call("get_group_member_list", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto members{ details::read_array<GroupMemberInfo>(*data, "data", to_group_member_info) };
-        if (!members) {
-            co_return std::unexpected{ details::invalid_data_error("get_group_member_list", members.error(), *data) };
-        }
-        co_return std::move(*members);
-    }
-
-    /**
-     * @brief Call `get_group_honor_info`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
-     * @return Task yielding the group's honors, or why the action failed.
-     * @note NapCat reads the honors from QQ's web page and leaves a list empty when that
-     * fails, so an empty list does not prove that nobody holds the honor.
-     */
-    auto OneBot::GetGroupHonorInfo(
-        GetGroupHonorInfoParams params
-    ) const -> drogon::Task<Result<GroupHonorInfo>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        Json::Value body{ Json::objectValue };
-        body["group_id"] = params.group_id;
-        body["type"] = params.type;
-        auto const data{ co_await transport->Call("get_group_honor_info", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        details::FieldReader fields{ *data };
-        GroupHonorInfo info{ .group_id = fields.RequiredInteger<std::int64_t>("group_id"), .raw = *data };
+    auto to_group_honor_info(Json::Value const& data) -> std::expected<drogon_onebot::GroupHonorInfo, std::string> {
+        drogon_onebot::details::FieldReader fields{ data };
+        drogon_onebot::GroupHonorInfo info{ .group_id = fields.RequiredInteger<std::int64_t>("group_id"), .raw = data };
         if (!fields.Problem().empty()) {
-            co_return std::unexpected{ details::invalid_data_error("get_group_honor_info", fields.Problem(), *data) };
+            return std::unexpected{ fields.Problem() };
         }
         // NapCat sends an empty object when nobody is the most talkative member.
-        auto const& current{ details::member(*data, "current_talkative") };
+        auto const& current{ drogon_onebot::details::member(data, "current_talkative") };
         if (!current.empty()) {
             auto talkative{ to_group_honor_member(current) };
             if (!talkative) {
-                co_return std::unexpected{
-                    details::invalid_data_error("get_group_honor_info", std::format("current_talkative.{}", talkative.error()), *data)
-                };
+                return std::unexpected{ std::format("current_talkative.{}", talkative.error()) };
             }
             info.current_talkative = std::move(*talkative);
         }
@@ -254,18 +149,102 @@ namespace drogon_onebot {
                  std::pair{ "strong_newbie_list", &info.strong_newbie_list },
                  std::pair{ "emotion_list", &info.emotion_list },
              }) {
-            auto members{ to_group_honor_list(*data, key) };
+            auto members{ to_group_honor_list(data, key) };
             if (!members) {
-                co_return std::unexpected{ details::invalid_data_error("get_group_honor_info", members.error(), *data) };
+                return std::unexpected{ std::move(members.error()) };
             }
             *list = std::move(*members);
         }
-        co_return info;
+        return info;
+    }
+
+} // namespace
+
+namespace drogon_onebot {
+
+    /**
+     * @brief Call `get_group_info`.
+     * @param params Request fields, read before this returns.
+     * @return Task yielding the group, or why the action failed.
+     */
+    auto OneBot::GetGroupInfo(
+        GetGroupInfoParams params
+    ) const -> drogon::Task<Result<GroupInfo>> {
+        Json::Value body{ Json::objectValue };
+        body["group_id"] = params.group_id;
+        if (params.no_cache) {
+            body["no_cache"] = *params.no_cache;
+        }
+        return details::call_and_read<GroupInfo>(m_transport, "get_group_info", std::move(body), params.timeout, to_group_info);
+    }
+
+    /**
+     * @brief Call `get_group_list`.
+     * @param params Request fields, read before this returns.
+     * @return Task yielding the groups the bot account is in, or why the action failed.
+     */
+    auto OneBot::GetGroupList(
+        GetGroupListParams params
+    ) const -> drogon::Task<Result<std::vector<GroupInfo>>> {
+        Json::Value body{ Json::objectValue };
+        if (params.no_cache) {
+            body["no_cache"] = *params.no_cache;
+        }
+        return details::call_and_read<std::vector<GroupInfo>>(m_transport, "get_group_list", std::move(body), params.timeout, to_group_list);
+    }
+
+    /**
+     * @brief Call `get_group_member_info`.
+     * @param params Request fields, read before this returns.
+     * @return Task yielding the group member, or why the action failed.
+     */
+    auto OneBot::GetGroupMemberInfo(
+        GetGroupMemberInfoParams params
+    ) const -> drogon::Task<Result<GroupMemberInfo>> {
+        Json::Value body{ Json::objectValue };
+        body["group_id"] = params.group_id;
+        body["user_id"] = params.user_id;
+        if (params.no_cache) {
+            body["no_cache"] = *params.no_cache;
+        }
+        return details::call_and_read<GroupMemberInfo>(m_transport, "get_group_member_info", std::move(body), params.timeout, to_group_member_info);
+    }
+
+    /**
+     * @brief Call `get_group_member_list`.
+     * @param params Request fields, read before this returns.
+     * @return Task yielding the group's members, or why the action failed.
+     */
+    auto OneBot::GetGroupMemberList(
+        GetGroupMemberListParams params
+    ) const -> drogon::Task<Result<std::vector<GroupMemberInfo>>> {
+        Json::Value body{ Json::objectValue };
+        body["group_id"] = params.group_id;
+        if (params.no_cache) {
+            body["no_cache"] = *params.no_cache;
+        }
+        return details::call_and_read<std::vector<GroupMemberInfo>>(m_transport, "get_group_member_list", std::move(body), params.timeout, to_group_member_list);
+    }
+
+    /**
+     * @brief Call `get_group_honor_info`.
+     * @param params Request fields, read before this returns.
+     * @return Task yielding the group's honors, or why the action failed.
+     * @note NapCat reads the honors from QQ's web page and leaves a list empty when that
+     * fails, so an empty list does not prove that nobody holds the honor.
+     */
+    auto OneBot::GetGroupHonorInfo(
+        GetGroupHonorInfoParams params
+    ) const -> drogon::Task<Result<GroupHonorInfo>> {
+        Json::Value body{ Json::objectValue };
+        body["group_id"] = params.group_id;
+        body["type"] = params.type;
+        return details::call_and_read<GroupHonorInfo>(m_transport, "get_group_honor_info", std::move(body), params.timeout, to_group_honor_info);
     }
 
     /**
      * @brief Call `set_group_kick`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing on success, or why the action failed.
      * @note NapCat does not check QQ's answer, so a removal that QQ refuses, e.g.
      * without admin rights, still succeeds.
@@ -273,22 +252,16 @@ namespace drogon_onebot {
     auto OneBot::SetGroupKick(
         SetGroupKickParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["group_id"] = params.group_id;
         body["user_id"] = params.user_id;
         body["reject_add_request"] = params.reject_add_request;
-        auto const data{ co_await transport->Call("set_group_kick", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "set_group_kick", std::move(body), params.timeout);
     }
 
     /**
      * @brief Call `set_group_ban`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing on success, or why the action failed.
      * @note NapCat fails with `ErrorKind::Action` for a member not in the group, for the
      * group owner, and for an admin unless the bot account owns the group.
@@ -296,43 +269,31 @@ namespace drogon_onebot {
     auto OneBot::SetGroupBan(
         SetGroupBanParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["group_id"] = params.group_id;
         body["user_id"] = params.user_id;
         body["duration"] = params.duration;
-        auto const data{ co_await transport->Call("set_group_ban", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "set_group_ban", std::move(body), params.timeout);
     }
 
     /**
      * @brief Call `set_group_whole_ban`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing on success, or why the action failed.
      * @note NapCat reports QQ's refusal, e.g. without admin rights, as `ErrorKind::Action`.
      */
     auto OneBot::SetGroupWholeBan(
         SetGroupWholeBanParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["group_id"] = params.group_id;
         body["enable"] = params.enable;
-        auto const data{ co_await transport->Call("set_group_whole_ban", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "set_group_whole_ban", std::move(body), params.timeout);
     }
 
     /**
      * @brief Call `set_group_admin`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing on success, or why the action failed.
      * @note NapCat does not check QQ's answer, so a change that QQ refuses, e.g. when
      * the bot account does not own the group, still succeeds.
@@ -340,22 +301,16 @@ namespace drogon_onebot {
     auto OneBot::SetGroupAdmin(
         SetGroupAdminParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["group_id"] = params.group_id;
         body["user_id"] = params.user_id;
         body["enable"] = params.enable;
-        auto const data{ co_await transport->Call("set_group_admin", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "set_group_admin", std::move(body), params.timeout);
     }
 
     /**
      * @brief Call `set_group_card`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing on success, or why the action failed.
      * @note NapCat reads the card back for about 3 seconds after setting it, and fails
      * with `ErrorKind::Action` when it has not changed by then.
@@ -363,64 +318,46 @@ namespace drogon_onebot {
     auto OneBot::SetGroupCard(
         SetGroupCardParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["group_id"] = params.group_id;
         body["user_id"] = params.user_id;
         body["card"] = params.card;
-        auto const data{ co_await transport->Call("set_group_card", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "set_group_card", std::move(body), params.timeout);
     }
 
     /**
      * @brief Call `set_group_name`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing on success, or why the action failed.
      * @note NapCat reports QQ's refusal as `ErrorKind::Action`.
      */
     auto OneBot::SetGroupName(
         SetGroupNameParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["group_id"] = params.group_id;
         body["group_name"] = params.group_name;
-        auto const data{ co_await transport->Call("set_group_name", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "set_group_name", std::move(body), params.timeout);
     }
 
     /**
      * @brief Call `set_group_leave`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing on success, or why the action failed.
      * @note NapCat does not check QQ's answer, so a request that QQ refuses still succeeds.
      */
     auto OneBot::SetGroupLeave(
         SetGroupLeaveParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["group_id"] = params.group_id;
         body["is_dismiss"] = params.is_dismiss;
-        auto const data{ co_await transport->Call("set_group_leave", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "set_group_leave", std::move(body), params.timeout);
     }
 
     /**
      * @brief Call `set_group_special_title`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing on success, or why the action failed.
      * @note NapCat sets titles through its packet backend and fails with
      * `ErrorKind::Action` (retcode 400) when that is unavailable.
@@ -428,18 +365,12 @@ namespace drogon_onebot {
     auto OneBot::SetGroupSpecialTitle(
         SetGroupSpecialTitleParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["group_id"] = params.group_id;
         body["user_id"] = params.user_id;
         body["special_title"] = params.special_title;
         body["duration"] = params.duration;
-        auto const data{ co_await transport->Call("set_group_special_title", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "set_group_special_title", std::move(body), params.timeout);
     }
 
 } // namespace drogon_onebot

@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <string>
 #include <vector>
@@ -30,6 +31,7 @@ namespace drogon_onebot::details {
         std::vector<NoticeHandler> m_notice_handlers;        ///< Handlers for `post_type` `notice`.
         std::vector<RequestHandler> m_request_handlers;      ///< Handlers for `post_type` `request`.
         std::vector<MetaEventHandler> m_meta_event_handlers; ///< Handlers for `post_type` `meta_event`.
+        std::atomic<bool> m_registration_closed{ false };    ///< Set once the listeners have started, after which no handler may be added.
 
     public:
         /**
@@ -37,6 +39,17 @@ namespace drogon_onebot::details {
          * @param secret Secret that signs events; empty accepts unsigned events.
          */
         explicit EventReceiver(std::string secret);
+
+        /**
+         * @brief Mark the handler lists as final, because the listeners have started.
+         */
+        auto CloseRegistration() noexcept -> void;
+
+        /**
+         * @brief Tell whether the handler lists are final.
+         * @return True once `CloseRegistration()` has run; adding a handler then would race with `Receive()`.
+         */
+        [[nodiscard]] auto RegistrationClosed() const noexcept -> bool;
 
         /**
          * @brief Add a handler for message events.

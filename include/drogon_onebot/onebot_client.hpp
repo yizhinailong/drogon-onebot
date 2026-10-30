@@ -82,6 +82,10 @@ namespace drogon_onebot {
      *
      * A cheap handle: copies share one transport, which is safe to use from any thread.
      * Pass it to coroutines by value.
+     *
+     * Each method reads its parameters and hands the returned task its own share of the
+     * transport before it returns. The task may therefore outlive this handle and the
+     * parameters, even though it starts only when awaited.
      */
     class OneBot final {
     private:
@@ -96,7 +100,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call any action and await its `data` field.
-         * @param params Action name and parameters, taken by value so they outlive the caller's frame.
+         * @param params Action name and parameters, read before this returns.
          * @return Task yielding the response envelope's `data` (null for an `async` response), or why the action failed.
          * @note The request runs on the calling thread's event loop (the main loop when the
          * thread runs none), so the coroutine resumes on the thread that awaited it.
@@ -107,7 +111,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_login_info`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the logged-in account, or why the action failed.
          */
         [[nodiscard]] auto GetLoginInfo(
@@ -116,7 +120,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_stranger_info`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the account's public profile, or why the action failed.
          */
         [[nodiscard]] auto GetStrangerInfo(
@@ -125,7 +129,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `send_like`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing once the likes are sent, or why the action failed.
          * @note NapCat reports a like that QQ refuses as `ErrorKind::Action`.
          */
@@ -135,7 +139,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_friend_list`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the bot account's friends, or why the action failed.
          */
         [[nodiscard]] auto GetFriendList(
@@ -144,7 +148,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `send_private_msg`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the sent message's ID, or why the action failed.
          */
         [[nodiscard]] auto SendPrivateMsg(
@@ -153,7 +157,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `send_group_msg`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the sent message's ID, or why the action failed.
          */
         [[nodiscard]] auto SendGroupMsg(
@@ -162,7 +166,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `send_msg`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the sent message's ID, or why the action failed.
          * @note Without `message_type`, NapCat sends to `group_id` when it is set and to
          * `user_id` otherwise. With `private`, it sends to a non-friend `user_id` as a
@@ -174,7 +178,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `delete_msg`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing once the message is recalled, or why the action failed.
          * @note NapCat remembers only the message IDs it has seen since it started (5000 by default);
          * an older ID fails with `ErrorKind::Action`.
@@ -185,7 +189,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_msg`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the message, or why the action failed.
          * @note NapCat remembers only the message IDs it has seen since it started (5000 by default);
          * an older ID fails with `ErrorKind::Action`.
@@ -196,7 +200,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_forward_msg`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the forwarded messages, or why the action failed.
          * @note NapCat answers with go-cqhttp's `messages`, whole messages shaped like those
          * of `get_msg`, instead of the standard's `node` segments; this reads NapCat's shape.
@@ -209,7 +213,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_group_info`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the group, or why the action failed.
          */
         [[nodiscard]] auto GetGroupInfo(
@@ -218,7 +222,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_group_list`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the groups the bot account is in, or why the action failed.
          */
         [[nodiscard]] auto GetGroupList(
@@ -227,7 +231,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_group_member_info`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the group member, or why the action failed.
          */
         [[nodiscard]] auto GetGroupMemberInfo(
@@ -236,7 +240,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_group_member_list`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the group's members, or why the action failed.
          */
         [[nodiscard]] auto GetGroupMemberList(
@@ -245,7 +249,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_group_honor_info`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the group's honors, or why the action failed.
          * @note NapCat reads the honors from QQ's web page and leaves a list empty when that
          * fails, so an empty list does not prove that nobody holds the honor.
@@ -256,7 +260,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_group_kick`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat does not check QQ's answer, so a removal that QQ refuses, e.g.
          * without admin rights, still succeeds.
@@ -267,7 +271,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_group_ban`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat fails with `ErrorKind::Action` for a member not in the group, for the
          * group owner, and for an admin unless the bot account owns the group.
@@ -278,7 +282,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_group_whole_ban`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat reports QQ's refusal, e.g. without admin rights, as `ErrorKind::Action`.
          */
@@ -288,7 +292,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_group_admin`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat does not check QQ's answer, so a change that QQ refuses, e.g. when
          * the bot account does not own the group, still succeeds.
@@ -299,7 +303,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_group_card`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat reads the card back for about 3 seconds after setting it, and fails
          * with `ErrorKind::Action` when it has not changed by then.
@@ -310,7 +314,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_group_name`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat reports QQ's refusal as `ErrorKind::Action`.
          */
@@ -320,7 +324,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_group_leave`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat does not check QQ's answer, so a request that QQ refuses still succeeds.
          */
@@ -330,7 +334,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_group_special_title`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat sets titles through its packet backend and fails with
          * `ErrorKind::Action` (retcode 400) when that is unavailable.
@@ -341,7 +345,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_friend_add_request`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat fails with `ErrorKind::Action` when no pending request has `flag`.
          * Otherwise it does not wait for QQ's answer, so a refused request still succeeds.
@@ -352,7 +356,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_group_add_request`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing on success, or why the action failed.
          * @note NapCat fails with `ErrorKind::Action` when it finds no request with `flag`
          * among the bot's invitations and its latest group notifications. Otherwise it does
@@ -364,7 +368,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_cookies`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the bot account's cookies, or why the action failed.
          * @note NapCat also answers with the cookies' CSRF token as the string `bkn`, which
          * `Cookies::raw` keeps.
@@ -375,7 +379,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_csrf_token`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the bot account's CSRF token, or why the action failed.
          * @note NapCat fails with `ErrorKind::Action` when it cannot get the account's `skey` from QQ.
          */
@@ -385,7 +389,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_credentials`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the bot account's cookies and CSRF token, or why the action failed.
          * @note NapCat sends the token as `token`, like `get_csrf_token`, instead of the
          * standard's `csrf_token`; this reads either.
@@ -396,7 +400,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_record`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the converted voice file, or why the action failed.
          * @note NapCat converts the file with ffmpeg next to the original and also answers with
          * its content as `base64`, which `FileInfo::raw` keeps. It finds `file` among the media
@@ -409,7 +413,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_image`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the downloaded image file, or why the action failed.
          * @note NapCat answers with the content as `base64` only when its `enableLocalFile2Url`
          * setting is on. It finds `file` as `GetRecord()` describes.
@@ -420,7 +424,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `can_send_image`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding whether the implementation can send images, or why the action failed.
          * @note NapCat always answers yes.
          */
@@ -430,7 +434,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `can_send_record`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding whether the implementation can send voice, or why the action failed.
          * @note NapCat always answers yes.
          */
@@ -440,7 +444,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_status`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the implementation's running status, or why the action failed.
          * @note NapCat always sends `good` as true, even while the account is offline, so check `online`.
          */
@@ -450,7 +454,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `get_version_info`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding the implementation's name and version, or why the action failed.
          */
         [[nodiscard]] auto GetVersionInfo(
@@ -459,7 +463,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `set_restart`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing once the implementation accepted the restart, or why the action failed.
          * @note NapCat answers before it restarts its worker process, so its HTTP API and event
          * posts pause until the new process is up. Running in a single process or as its framework
@@ -471,7 +475,7 @@ namespace drogon_onebot {
 
         /**
          * @brief Call `clean_cache`.
-         * @param params Request fields, taken by value so they outlive the caller's frame.
+         * @param params Request fields, read before this returns.
          * @return Task yielding nothing once the implementation cleaned its cache, or why the action failed.
          * @note NapCat deletes the files directly inside its temp directory and QQ's media and log
          * directories, not their subdirectories. It only logs the files it cannot delete, and fails
@@ -508,6 +512,8 @@ namespace drogon_onebot {
      * checks `X-Signature` when a secret is set, answers 204 at once, and then
      * runs the matching handlers in the background, so a slow handler does not
      * hold the implementation's request open. Reply through `NewOneBotClient()`.
+     * Without `secret_env`, the route accepts unsigned events from anyone who can
+     * reach the listener, and `initAndStart()` logs a warning about it.
      *
      * Fetch the plugin once `app().run()` has started, e.g. from a beginning advice
      * or a handler: `drogon::app().getPlugin<drogon_onebot::OneBotClient>()`.
@@ -556,7 +562,8 @@ namespace drogon_onebot {
          * @note Call only after drogon has initialized the plugin, and before the
          * listeners start: from a beginning advice, or from `initAndStart()` of a
          * plugin that lists this one under `dependencies`. The route reads the
-         * handlers from IO threads without a lock.
+         * handlers from IO threads without a lock, so once the listeners have
+         * started, this logs an error and drops `handler`.
          */
         auto OnMessage(MessageHandler handler) -> void;
 
@@ -583,10 +590,11 @@ namespace drogon_onebot {
 
     private:
         /**
-         * @brief Log that a handler will never run because no event route is registered.
+         * @brief Check that a handler may still be added, and log why it cannot or will never run.
          * @param method Name of the registering method, for the log message.
+         * @return False once the listeners have started, when the handler must be dropped.
          */
-        auto warnWithoutRoute(char const* method) const -> void;
+        [[nodiscard]] auto acceptsHandler(char const* method) const -> bool;
     };
 
 } // namespace drogon_onebot

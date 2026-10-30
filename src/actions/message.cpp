@@ -6,37 +6,29 @@
 #include <expected>
 #include <format>
 #include <string>
-#include <string_view>
 #include <utility>
 
+#include "details/action_call.hpp"
 #include "details/field_reader.hpp"
 #include "details/json.hpp"
-#include "details/transport.hpp"
 #include "drogon_onebot/onebot_client.hpp"
 
 namespace {
 
     /**
-     * @brief Read the sent message from the result of a send action.
-     * @param action Action name, for error messages.
-     * @param data Result of `Transport::Call`.
-     * @return The sent message, the call's error, or a `ResponseValidation` error when `data` has no `message_id`
-     * or a `res_id` that is not a string.
+     * @brief Read the `data` of a send action.
+     * @param data Object to read.
+     * @return The sent message, or the first problem found, e.g. `message_id is missing`
+     * or `res_id is not a string`.
      */
-    auto to_sent_message(
-        std::string_view action,
-        drogon_onebot::Result<Json::Value> const& data
-    ) -> drogon_onebot::Result<drogon_onebot::SentMessage> {
-        if (!data) {
-            return std::unexpected{ data.error() };
-        }
-        drogon_onebot::details::FieldReader fields{ *data };
+    auto to_sent_message(Json::Value const& data) -> std::expected<drogon_onebot::SentMessage, std::string> {
+        drogon_onebot::details::FieldReader fields{ data };
         drogon_onebot::SentMessage sent{
             .message_id = fields.RequiredInteger<std::int32_t>("message_id"),
             .res_id = fields.String("res_id"),
         };
         if (!fields.Problem().empty()) {
-            return std::unexpected{ drogon_onebot::details::invalid_data_error(action, fields.Problem(), *data) };
+            return std::unexpected{ fields.Problem() };
         }
         return sent;
     }
@@ -74,47 +66,54 @@ namespace {
         return info;
     }
 
+    /**
+     * @brief Read the `data` of `get_forward_msg` in NapCat's shape: go-cqhttp's `messages`.
+     * @param data Object to read.
+     * @return The forwarded messages, or the first problem found, e.g. `messages[0].message_type is missing`.
+     */
+    auto to_forward_message(Json::Value const& data) -> std::expected<drogon_onebot::ForwardMessage, std::string> {
+        auto messages{ drogon_onebot::details::read_array<drogon_onebot::MessageInfo>(drogon_onebot::details::member(data, "messages"), "messages", to_message_info) };
+        if (!messages) {
+            return std::unexpected{ std::move(messages.error()) };
+        }
+        return drogon_onebot::ForwardMessage{ .messages = std::move(*messages) };
+    }
+
 } // namespace
 
 namespace drogon_onebot {
 
     /**
      * @brief Call `send_private_msg`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding the sent message's ID, or why the action failed.
      */
     auto OneBot::SendPrivateMsg(
         SendPrivateMsgParams params
     ) const -> drogon::Task<Result<SentMessage>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["user_id"] = params.user_id;
         body["message"] = details::to_json(params.message);
-        auto const data{ co_await transport->Call("send_private_msg", std::move(body), params.timeout) };
-        co_return to_sent_message("send_private_msg", data);
+        return details::call_and_read<SentMessage>(m_transport, "send_private_msg", std::move(body), params.timeout, to_sent_message);
     }
 
     /**
      * @brief Call `send_group_msg`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding the sent message's ID, or why the action failed.
      */
     auto OneBot::SendGroupMsg(
         SendGroupMsgParams params
     ) const -> drogon::Task<Result<SentMessage>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["group_id"] = params.group_id;
         body["message"] = details::to_json(params.message);
-        auto const data{ co_await transport->Call("send_group_msg", std::move(body), params.timeout) };
-        co_return to_sent_message("send_group_msg", data);
+        return details::call_and_read<SentMessage>(m_transport, "send_group_msg", std::move(body), params.timeout, to_sent_message);
     }
 
     /**
      * @brief Call `send_msg`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding the sent message's ID, or why the action failed.
      * @note Without `message_type`, NapCat sends to `group_id` when it is set and to
      * `user_id` otherwise. With `private`, it sends to a non-friend `user_id` as a
@@ -123,8 +122,6 @@ namespace drogon_onebot {
     auto OneBot::SendMsg(
         SendMsgParams params
     ) const -> drogon::Task<Result<SentMessage>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         if (!params.message_type.empty()) {
             body["message_type"] = params.message_type;
@@ -136,13 +133,12 @@ namespace drogon_onebot {
             body["group_id"] = *params.group_id;
         }
         body["message"] = details::to_json(params.message);
-        auto const data{ co_await transport->Call("send_msg", std::move(body), params.timeout) };
-        co_return to_sent_message("send_msg", data);
+        return details::call_and_read<SentMessage>(m_transport, "send_msg", std::move(body), params.timeout, to_sent_message);
     }
 
     /**
      * @brief Call `delete_msg`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing once the message is recalled, or why the action failed.
      * @note NapCat remembers only the message IDs it has seen since it started (5000 by default);
      * an older ID fails with `ErrorKind::Action`.
@@ -150,20 +146,14 @@ namespace drogon_onebot {
     auto OneBot::DeleteMsg(
         DeleteMsgParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["message_id"] = params.message_id;
-        auto const data{ co_await transport->Call("delete_msg", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "delete_msg", std::move(body), params.timeout);
     }
 
     /**
      * @brief Call `get_msg`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding the message, or why the action failed.
      * @note NapCat remembers only the message IDs it has seen since it started (5000 by default);
      * an older ID fails with `ErrorKind::Action`.
@@ -171,24 +161,14 @@ namespace drogon_onebot {
     auto OneBot::GetMsg(
         GetMsgParams params
     ) const -> drogon::Task<Result<MessageInfo>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["message_id"] = params.message_id;
-        auto const data{ co_await transport->Call("get_msg", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto info{ to_message_info(*data) };
-        if (!info) {
-            co_return std::unexpected{ details::invalid_data_error("get_msg", info.error(), *data) };
-        }
-        co_return std::move(*info);
+        return details::call_and_read<MessageInfo>(m_transport, "get_msg", std::move(body), params.timeout, to_message_info);
     }
 
     /**
      * @brief Call `get_forward_msg`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding the forwarded messages, or why the action failed.
      * @note NapCat answers with go-cqhttp's `messages`, whole messages shaped like those
      * of `get_msg`, instead of the standard's `node` segments; this reads NapCat's shape.
@@ -198,19 +178,9 @@ namespace drogon_onebot {
     auto OneBot::GetForwardMsg(
         GetForwardMsgParams params
     ) const -> drogon::Task<Result<ForwardMessage>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["id"] = params.id;
-        auto const data{ co_await transport->Call("get_forward_msg", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto messages{ details::read_array<MessageInfo>(details::member(*data, "messages"), "messages", to_message_info) };
-        if (!messages) {
-            co_return std::unexpected{ details::invalid_data_error("get_forward_msg", messages.error(), *data) };
-        }
-        co_return ForwardMessage{ .messages = std::move(*messages) };
+        return details::call_and_read<ForwardMessage>(m_transport, "get_forward_msg", std::move(body), params.timeout, to_forward_message);
     }
 
 } // namespace drogon_onebot

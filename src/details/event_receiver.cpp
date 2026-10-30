@@ -577,6 +577,21 @@ namespace drogon_onebot::details {
         : m_secret{ std::move(secret) } {}
 
     /**
+     * @brief Mark the handler lists as final, because the listeners have started.
+     */
+    auto EventReceiver::CloseRegistration() noexcept -> void {
+        m_registration_closed.store(true);
+    }
+
+    /**
+     * @brief Tell whether the handler lists are final.
+     * @return True once `CloseRegistration()` has run; adding a handler then would race with `Receive()`.
+     */
+    auto EventReceiver::RegistrationClosed() const noexcept -> bool {
+        return m_registration_closed.load();
+    }
+
+    /**
      * @brief Add a handler for message events.
      * @param handler Coroutine to run for each message event.
      */

@@ -63,7 +63,7 @@ target_link_libraries(app PRIVATE drogon-onebot::drogon-onebot)
 | `base_url` | Yes | The HTTP API address of the OneBot implementation, optionally with a path prefix. Actions go to `<base_url>/<action>`. |
 | `access_token_env` | No | **Name of the environment variable** that holds the access token. Without it, no `Authorization` header is sent. |
 | `event_path` | No | Route path that receives events. It must start with `/`. Without it, no route is registered, and the plugin can send but not receive. |
-| `secret_env` | No | **Name of the environment variable** that holds the secret that signs reported events. Without it, signatures are not checked and unsigned events are accepted. |
+| `secret_env` | No | **Name of the environment variable** that holds the secret that signs reported events. Without it, signatures are not checked and unsigned events are accepted; with `event_path` set, `initAndStart` then logs a WARN line, because anyone who can reach the listener can post events. |
 
 - Neither secret goes into config.json. Both are read only from environment variables.
 - The access token is sent as `Authorization: Bearer <token>` and must match the token of the OneBot implementation's HTTP API.
@@ -120,6 +120,7 @@ app().quit()                              drogon calls OneBotClient::shutdown()
 ## Calling actions
 
 - `OneBot` is a value handle whose only shared state is one `std::shared_ptr<details::Transport>`. A copy only increments a reference count, so pass it into coroutines by value.
+- Each method reads its parameters and gives the returned task its own share of the transport before it returns. The task starts only when awaited, but it needs neither the `OneBot` nor the parameters to stay alive until then.
 - Every method returns `drogon::Task<Result<T>>`, where `Result<T>` is `std::expected<T, Error>`. A failed action **does not throw**.
 - Messages use array format: `Message` is `std::vector<MessageSegment>`, and each segment is a `type` plus a `Json::Value data`. CQ-code strings and `auto_escape` are not supported yet.
 
@@ -316,7 +317,7 @@ The route answers first and runs the callbacks afterwards. NapCat keeps its repo
 
 ### Callback rules
 
-- **When to register**: only after the plugin is initialized and before the listeners start. That means in a beginning advice, or in `initAndStart` of another plugin that lists this one under `dependencies`. The route reads the callback lists on IO threads without a lock.
+- **When to register**: only after the plugin is initialized and before the listeners start. That means in a beginning advice, or in `initAndStart` of another plugin that lists this one under `dependencies`. The route reads the callback lists on IO threads without a lock, so once the listeners have started, `On*` logs an ERROR line and drops the callback.
 - **Lifetime**: each event starts one `drogon::async_run` task per callback, and each task frame holds its own copy of the callback and the event. So the captures of a callback lambda (such as `bot`) live until that task ends.
 - **Exceptions**: the library catches any exception that a callback throws and logs it at ERROR level. Other callbacks and later events are not affected. An exception left uncaught in an `AsyncTask` calls `std::terminate` directly (`coroutine.h:397-401`).
 - **Threads**: a callback starts running on the IO thread that received the request. When the callback calls a `OneBot` method, the request is sent on that thread's event loop too, and the callback resumes on the same thread.
@@ -343,7 +344,7 @@ The OneBot v11 HTTP API answers with a non-200 status only when the request itse
 
 - Only coroutine APIs are provided. drogon's documentation recommends asynchronous APIs or coroutines. A synchronous API blocks the IO thread, and waiting synchronously on the loop that the client runs on also deadlocks.
 - `Transport::Call` creates a new `HttpClient` for each request on the calling thread's event loop (or on the main loop when the calling thread runs no loop), and keeps it in the coroutine frame until the response arrives. drogon's `HttpClient` defaults to pipelining depth 0, so sharing one client would serialize concurrent requests.
-- Coroutines take their parameters by value. Every action method copies `m_transport` into the coroutine frame before its first `co_await`, so a request completes even if the `OneBot` is destroyed while the request is in flight.
+- Coroutines take their parameters by value. Each action method builds the request body and returns the task of `details::call_and_read` or `details::call_and_discard`, which takes the transport as a coroutine parameter, so a request completes even if the `OneBot` is destroyed before the task starts or while the request is in flight.
 
 ## Known limitations
 
@@ -367,8 +368,8 @@ All tests run offline. The tests that need a server use the same app as a stand-
 
 | Program | What it covers |
 |---|---|
-| `test_config` | Calls `initAndStart` directly without starting the app: the required key, reading both `_env` keys and their errors, `event_path` validation, and that the config.json in the repository passes validation. |
-| `test_actions` | A fake NapCat HTTP API. `CallAction`'s request body, `Authorization`, and `base_url` path prefix; `async`; all five `ErrorKind`s (`failed`, `wording` only, 404, 403, non-JSON, no `status`, unknown `status`, timeout, connection failure); and for the typed actions, success with `data` shaped like NapCat's, missing or mistyped `data` fields, `Action` errors, and `no_cache` and the `send_msg` targets being sent only when set. |
-| `test_events` | The signed event route. RFC 2202 vectors check the test's own HMAC; a NapCat signature computed independently with Python; uppercase signatures; a group message with string IDs; the 401, 403, and 400 rejections, with no callback run; dispatch of all four event types; typed notice details, and a notice missing a typed field; `message_sent` dropped; several callbacks all run; the service continuing after a callback throws; the response not waiting for a slow callback. |
+| `test_config` | Calls `initAndStart` directly without starting the app: the required key, reading both `_env` keys and their errors, `event_path` validation, the WARN line for an event route without `secret_env`, and that the config.json in the repository passes validation. |
+| `test_actions` | A fake NapCat HTTP API. `CallAction`'s request body, `Authorization`, and `base_url` path prefix; `async`; all five `ErrorKind`s (`failed`, `wording` only, 404, 403, non-JSON, no `status`, unknown `status`, timeout, connection failure); tasks awaited after their `OneBot` is gone; and for the typed actions, success with `data` shaped like NapCat's, missing or mistyped `data` fields, `Action` errors, and `no_cache` and the `send_msg` targets being sent only when set. |
+| `test_events` | The signed event route. RFC 2202 vectors check the test's own HMAC; a NapCat signature computed independently with Python; uppercase signatures; a group message with string IDs; the 401, 403, and 400 rejections, with no callback run; dispatch of all four event types; typed notice details, and a notice missing a typed field; `message_sent` dropped; several callbacks all run; the service continuing after a callback throws; the response not waiting for a slow callback; a callback registered after the listeners started being dropped. |
 | `test_events_unsigned` | The event route without `secret_env`: unsigned events are accepted, and any `X-Signature` is ignored. |
 | `test_segments` | Without starting the app: the segments that each `MessageSegment` function builds, including IDs sent as strings, and a message that mixes built and hand-written segments. |

@@ -13,8 +13,10 @@
 #include <utility>
 
 #include <drogon/HttpAppFramework.h>
+#include <trantor/net/EventLoop.h>
 #include <trantor/utils/Logger.h>
 
+#include "details/action_call.hpp"
 #include "details/event_receiver.hpp"
 #include "details/transport.hpp"
 
@@ -73,7 +75,7 @@ namespace drogon_onebot {
 
     /**
      * @brief Call any action and await its `data` field.
-     * @param params Action name and parameters, taken by value so they outlive the caller's frame.
+     * @param params Action name and parameters, read before this returns.
      * @return Task yielding the response envelope's `data` (null for an `async` response), or why the action failed.
      * @note The request runs on the calling thread's event loop (the main loop when the
      * thread runs none), so the coroutine resumes on the thread that awaited it.
@@ -81,9 +83,7 @@ namespace drogon_onebot {
     auto OneBot::CallAction(
         CallActionParams params
     ) const -> drogon::Task<Result<Json::Value>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        co_return co_await transport->Call(std::move(params.action), std::move(params.params), params.timeout);
+        return details::call(m_transport, std::move(params.action), std::move(params.params), params.timeout);
     }
 
     /**
@@ -108,7 +108,16 @@ namespace drogon_onebot {
         }
 
         m_receiver = std::make_shared<details::EventReceiver>(m_config.secret);
+        // Beginning advices run in one main-loop task that then starts the listeners
+        // (HttpAppFrameworkImpl.cc:674-682), so a task queued from an advice runs after every
+        // advice, including those registered by plugins initialized after this one.
+        drogon::app().registerBeginningAdvice([receiver = m_receiver] {
+            drogon::app().getLoop()->queueInLoop([receiver] { receiver->CloseRegistration(); });
+        });
         if (!m_config.event_path.empty()) {
+            if (m_config.secret.empty()) {
+                LOG_WARN << "drogon_onebot::OneBotClient: event_path " << m_config.event_path << " accepts unsigned events from anyone who can reach it; set secret_env to check X-Signature";
+            }
             // Plugins are initialized before the routers, so the route can still be added
             // here, as drogon's own PromExporter does (HttpAppFrameworkImpl.cc:663-671).
             drogon::app().registerHandler(
@@ -154,11 +163,13 @@ namespace drogon_onebot {
      * @note Call only after drogon has initialized the plugin, and before the
      * listeners start: from a beginning advice, or from `initAndStart()` of a
      * plugin that lists this one under `dependencies`. The route reads the
-     * handlers from IO threads without a lock.
+     * handlers from IO threads without a lock, so once the listeners have
+     * started, this logs an error and drops `handler`.
      */
     auto OneBotClient::OnMessage(MessageHandler handler) -> void {
-        warnWithoutRoute("OnMessage");
-        m_receiver->AddMessageHandler(std::move(handler));
+        if (acceptsHandler("OnMessage")) {
+            m_receiver->AddMessageHandler(std::move(handler));
+        }
     }
 
     /**
@@ -167,8 +178,9 @@ namespace drogon_onebot {
      * @note Register handlers at the times that `OnMessage()` lists.
      */
     auto OneBotClient::OnNotice(NoticeHandler handler) -> void {
-        warnWithoutRoute("OnNotice");
-        m_receiver->AddNoticeHandler(std::move(handler));
+        if (acceptsHandler("OnNotice")) {
+            m_receiver->AddNoticeHandler(std::move(handler));
+        }
     }
 
     /**
@@ -177,8 +189,9 @@ namespace drogon_onebot {
      * @note Register handlers at the times that `OnMessage()` lists.
      */
     auto OneBotClient::OnRequest(RequestHandler handler) -> void {
-        warnWithoutRoute("OnRequest");
-        m_receiver->AddRequestHandler(std::move(handler));
+        if (acceptsHandler("OnRequest")) {
+            m_receiver->AddRequestHandler(std::move(handler));
+        }
     }
 
     /**
@@ -187,18 +200,25 @@ namespace drogon_onebot {
      * @note Register handlers at the times that `OnMessage()` lists.
      */
     auto OneBotClient::OnMetaEvent(MetaEventHandler handler) -> void {
-        warnWithoutRoute("OnMetaEvent");
-        m_receiver->AddMetaEventHandler(std::move(handler));
+        if (acceptsHandler("OnMetaEvent")) {
+            m_receiver->AddMetaEventHandler(std::move(handler));
+        }
     }
 
     /**
-     * @brief Log that a handler will never run because no event route is registered.
+     * @brief Check that a handler may still be added, and log why it cannot or will never run.
      * @param method Name of the registering method, for the log message.
+     * @return False once the listeners have started, when the handler must be dropped.
      */
-    auto OneBotClient::warnWithoutRoute(char const* method) const -> void {
+    auto OneBotClient::acceptsHandler(char const* method) const -> bool {
+        if (m_receiver->RegistrationClosed()) {
+            LOG_ERROR << "drogon_onebot::OneBotClient: " << method << " dropped a handler added after the listeners started; add handlers from a beginning advice";
+            return false;
+        }
         if (m_config.event_path.empty()) {
             LOG_WARN << "drogon_onebot::OneBotClient: " << method << " has no effect without event_path in the plugin config";
         }
+        return true;
     }
 
 } // namespace drogon_onebot

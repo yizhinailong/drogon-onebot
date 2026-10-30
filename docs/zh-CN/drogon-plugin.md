@@ -63,7 +63,7 @@ target_link_libraries(app PRIVATE drogon-onebot::drogon-onebot)
 | `base_url` | 是 | OneBot 实现的 HTTP API 地址，可带路径前缀。动作发往 `<base_url>/<action>`。 |
 | `access_token_env` | 否 | 存放 access token 的**环境变量名**。省略时不发送 `Authorization` 头。 |
 | `event_path` | 否 | 接收事件的路由路径，必须以 `/` 开头。省略时不注册路由，插件只能发不能收。 |
-| `secret_env` | 否 | 存放上报签名密钥的**环境变量名**。省略时不校验签名，接受未签名的事件。 |
+| `secret_env` | 否 | 存放上报签名密钥的**环境变量名**。省略时不校验签名，接受未签名的事件；这时如果设置了 `event_path`，`initAndStart` 会打一条 WARN 日志，因为任何能访问监听端口的人都能上报事件。 |
 
 - 两个密钥都不写进 config.json，只从环境变量读取。
 - access token 以 `Authorization: Bearer <token>` 发送，需与 OneBot 实现 HTTP API 的 token 一致。
@@ -120,6 +120,7 @@ app().quit()                              drogon 调用 OneBotClient::shutdown()
 ## 调用动作
 
 - `OneBot` 是值句柄，内部唯一的共享状态是一个 `std::shared_ptr<details::Transport>`。拷贝只是引用计数加一，传进协程时按值传递。
+- 每个方法在返回之前就读完参数，并让返回的任务持有一份 transport。任务要到 `co_await` 时才开始执行，但在此之前不需要 `OneBot` 或参数仍然存活。
 - 每个方法返回 `drogon::Task<Result<T>>`，`Result<T>` 是 `std::expected<T, Error>`。动作失败**不会抛异常**。
 - 消息使用数组格式：`Message` 即 `std::vector<MessageSegment>`，每段是 `type` 加 `Json::Value data`。暂不支持 CQ 码字符串和 `auto_escape`。
 
@@ -316,7 +317,7 @@ plugin->OnNotice([](drogon_onebot::NoticeEvent event) -> drogon::Task<> {
 
 ### 回调的约束
 
-- **注册时机**：只能在插件初始化之后、开始监听之前注册，也就是在 beginning advice 里，或在把本插件列进 `dependencies` 的另一个插件的 `initAndStart` 里。路由在 IO 线程上读取回调列表，没有加锁。
+- **注册时机**：只能在插件初始化之后、开始监听之前注册，也就是在 beginning advice 里，或在把本插件列进 `dependencies` 的另一个插件的 `initAndStart` 里。路由在 IO 线程上读取回调列表，没有加锁，所以开始监听之后再调用 `On*`，会打一条 ERROR 日志并丢弃该回调。
 - **生命周期**：每个事件对每个回调各启动一个 `drogon::async_run` 任务，任务帧里各拷贝一份回调和事件。所以回调 lambda 的捕获（例如 `bot`）一直存活到该任务结束。
 - **异常**：回调抛出的异常由库捕获并打 ERROR 日志，不影响其他回调和后续事件。`AsyncTask` 里未捕获的异常会直接 `std::terminate`（`coroutine.h:397-401`）。
 - **线程**：回调在收到该请求的 IO 线程上开始运行。在回调里调用 `OneBot` 的方法时，请求也在这个线程的事件循环上发出，回调恢复后仍在同一线程。
@@ -343,7 +344,7 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 
 - 只提供协程接口。drogon 文档建议优先使用异步接口或协程，同步 API 会阻塞 IO 线程，在 client 所在的 loop 上同步等待还会死锁。
 - `Transport::Call` 为每个请求在调用线程的事件循环上新建 `HttpClient`（调用线程没有 loop 时用主 loop），并在响应到达前一直留在协程帧里。drogon 的 `HttpClient` 默认 pipelining 深度为 0，共享一个 client 会让并发请求串行执行。
-- 协程按值接收参数；每个动作方法在第一次 `co_await` 之前把 `m_transport` 拷进协程帧，即使 `OneBot` 在请求途中被销毁，请求也能完成。
+- 协程按值接收参数。每个动作方法构造请求体后，返回 `details::call_and_read` 或 `details::call_and_discard` 的任务，transport 作为协程参数进入它们的协程帧，所以即使 `OneBot` 在任务开始前或请求途中被销毁，请求也能完成。
 
 ## 已知限制
 
@@ -367,8 +368,8 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 
 | 程序 | 覆盖内容 |
 |---|---|
-| `test_config` | 不启动 app，直接调用 `initAndStart`：必填项、两个 `_env` 的读取与报错、`event_path` 校验，以及仓库里的 config.json 能通过校验。 |
-| `test_actions` | 假的 NapCat HTTP API。`CallAction` 的请求体、`Authorization`、`base_url` 路径前缀；`async`；全部五种 `ErrorKind`（`failed`、只有 `wording`、404、403、非 JSON、无 `status`、未知 `status`、超时、连接失败）；类型化动作在 NapCat 形状的 `data` 下成功、`data` 缺字段或字段类型不对、`Action` 错误，以及 `no_cache` 和 `send_msg` 的目标只在设置时发送。 |
-| `test_events` | 带签名的事件路由。RFC 2202 向量校验测试自带的 HMAC；用 Python 独立算出的 NapCat 签名；大写签名；字符串 ID 的群消息；401、403、400 各种拒收且回调不运行；四种事件的分发；类型化的通知详情，以及缺少类型字段的通知；丢弃 `message_sent`；多个回调都运行；回调抛异常后服务继续；应答不等慢回调。 |
+| `test_config` | 不启动 app，直接调用 `initAndStart`：必填项、两个 `_env` 的读取与报错、`event_path` 校验、没有 `secret_env` 的事件路由打出的 WARN 日志，以及仓库里的 config.json 能通过校验。 |
+| `test_actions` | 假的 NapCat HTTP API。`CallAction` 的请求体、`Authorization`、`base_url` 路径前缀；`async`；全部五种 `ErrorKind`（`failed`、只有 `wording`、404、403、非 JSON、无 `status`、未知 `status`、超时、连接失败）；在 `OneBot` 销毁之后才 `co_await` 的任务；类型化动作在 NapCat 形状的 `data` 下成功、`data` 缺字段或字段类型不对、`Action` 错误，以及 `no_cache` 和 `send_msg` 的目标只在设置时发送。 |
+| `test_events` | 带签名的事件路由。RFC 2202 向量校验测试自带的 HMAC；用 Python 独立算出的 NapCat 签名；大写签名；字符串 ID 的群消息；401、403、400 各种拒收且回调不运行；四种事件的分发；类型化的通知详情，以及缺少类型字段的通知；丢弃 `message_sent`；多个回调都运行；回调抛异常后服务继续；应答不等慢回调；开始监听后才注册的回调被丢弃。 |
 | `test_events_unsigned` | 去掉 `secret_env` 的事件路由：接受无签名事件，忽略任意 `X-Signature`。 |
 | `test_segments` | 不启动 app：每个 `MessageSegment` 函数构造的消息段，包括以字符串发送的 ID，以及混合构造和手写消息段的消息。 |

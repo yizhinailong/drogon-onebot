@@ -1001,6 +1001,21 @@ DROGON_TEST(CallActionUsesBaseUrlPathAsPrefix) {
     CHECK((*result)["user_id"].asInt64() == PREFIX_SELF_ID);
 }
 
+DROGON_TEST(TasksOutliveTheirClient) {
+    // Each client is a temporary that dies with its statement, before its task starts.
+    auto raw{ plugin_bot().CallAction({ .action = "get_login_info" }) };
+    auto info{ plugin_bot().GetLoginInfo() };
+    auto deleted{ plugin_bot().DeleteMsg({ .message_id = STORED_MESSAGE_ID }) };
+
+    auto const raw_result{ drogon::sync_wait(std::move(raw)) };
+    REQUIRE(raw_result.has_value());
+    CHECK((*raw_result)["user_id"].asInt64() == SELF_ID);
+    auto const info_result{ drogon::sync_wait(std::move(info)) };
+    REQUIRE(info_result.has_value());
+    CHECK(info_result->user_id == SELF_ID);
+    CHECK(drogon::sync_wait(std::move(deleted)).has_value());
+}
+
 DROGON_TEST(CallActionAsyncYieldsNull) {
     auto const result{ drogon::sync_wait(plugin_bot().CallAction({ .action = "async_action" })) };
     REQUIRE(result.has_value());

@@ -6,9 +6,8 @@
 #include <string>
 #include <utility>
 
+#include "details/action_call.hpp"
 #include "details/field_reader.hpp"
-#include "details/json.hpp"
-#include "details/transport.hpp"
 #include "drogon_onebot/onebot_client.hpp"
 
 namespace {
@@ -54,94 +53,54 @@ namespace drogon_onebot {
 
     /**
      * @brief Call `can_send_image`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding whether the implementation can send images, or why the action failed.
      * @note NapCat always answers yes.
      */
     auto OneBot::CanSendImage(
         CanSendImageParams params
     ) const -> drogon::Task<Result<CanSend>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        auto const data{ co_await transport->Call("can_send_image", Json::Value{ Json::objectValue }, params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto const answer{ to_can_send(*data) };
-        if (!answer) {
-            co_return std::unexpected{ details::invalid_data_error("can_send_image", answer.error(), *data) };
-        }
-        co_return *answer;
+        return details::call_and_read<CanSend>(m_transport, "can_send_image", Json::Value{ Json::objectValue }, params.timeout, to_can_send);
     }
 
     /**
      * @brief Call `can_send_record`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding whether the implementation can send voice, or why the action failed.
      * @note NapCat always answers yes.
      */
     auto OneBot::CanSendRecord(
         CanSendRecordParams params
     ) const -> drogon::Task<Result<CanSend>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        auto const data{ co_await transport->Call("can_send_record", Json::Value{ Json::objectValue }, params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto const answer{ to_can_send(*data) };
-        if (!answer) {
-            co_return std::unexpected{ details::invalid_data_error("can_send_record", answer.error(), *data) };
-        }
-        co_return *answer;
+        return details::call_and_read<CanSend>(m_transport, "can_send_record", Json::Value{ Json::objectValue }, params.timeout, to_can_send);
     }
 
     /**
      * @brief Call `get_status`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding the implementation's running status, or why the action failed.
      * @note NapCat always sends `good` as true, even while the account is offline, so check `online`.
      */
     auto OneBot::GetStatus(
         GetStatusParams params
     ) const -> drogon::Task<Result<Status>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        auto const data{ co_await transport->Call("get_status", Json::Value{ Json::objectValue }, params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto status{ details::read_status(*data) };
-        if (!status) {
-            co_return std::unexpected{ details::invalid_data_error("get_status", status.error(), *data) };
-        }
-        co_return std::move(*status);
+        return details::call_and_read<Status>(m_transport, "get_status", Json::Value{ Json::objectValue }, params.timeout, details::read_status);
     }
 
     /**
      * @brief Call `get_version_info`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding the implementation's name and version, or why the action failed.
      */
     auto OneBot::GetVersionInfo(
         GetVersionInfoParams params
     ) const -> drogon::Task<Result<VersionInfo>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        auto const data{ co_await transport->Call("get_version_info", Json::Value{ Json::objectValue }, params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        auto info{ to_version_info(*data) };
-        if (!info) {
-            co_return std::unexpected{ details::invalid_data_error("get_version_info", info.error(), *data) };
-        }
-        co_return std::move(*info);
+        return details::call_and_read<VersionInfo>(m_transport, "get_version_info", Json::Value{ Json::objectValue }, params.timeout, to_version_info);
     }
 
     /**
      * @brief Call `set_restart`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing once the implementation accepted the restart, or why the action failed.
      * @note NapCat answers before it restarts its worker process, so its HTTP API and event
      * posts pause until the new process is up. Running in a single process or as its framework
@@ -150,20 +109,14 @@ namespace drogon_onebot {
     auto OneBot::SetRestart(
         SetRestartParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
         Json::Value body{ Json::objectValue };
         body["delay"] = params.delay;
-        auto const data{ co_await transport->Call("set_restart", std::move(body), params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "set_restart", std::move(body), params.timeout);
     }
 
     /**
      * @brief Call `clean_cache`.
-     * @param params Request fields, taken by value so they outlive the caller's frame.
+     * @param params Request fields, read before this returns.
      * @return Task yielding nothing once the implementation cleaned its cache, or why the action failed.
      * @note NapCat deletes the files directly inside its temp directory and QQ's media and log
      * directories, not their subdirectories. It only logs the files it cannot delete, and fails
@@ -172,13 +125,7 @@ namespace drogon_onebot {
     auto OneBot::CleanCache(
         CleanCacheParams params
     ) const -> drogon::Task<Result<void>> {
-        // Keep the transport in the coroutine frame in case this object dies mid-request.
-        auto const transport{ m_transport };
-        auto const data{ co_await transport->Call("clean_cache", Json::Value{ Json::objectValue }, params.timeout) };
-        if (!data) {
-            co_return std::unexpected{ data.error() };
-        }
-        co_return Result<void>{};
+        return details::call_and_discard(m_transport, "clean_cache", Json::Value{ Json::objectValue }, params.timeout);
     }
 
 } // namespace drogon_onebot

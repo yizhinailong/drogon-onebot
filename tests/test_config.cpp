@@ -4,10 +4,14 @@
  *
  * Calls `initAndStart` on plugins built by the test, without running the app.
  */
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <stdexcept>
 #include <string>
 
 #include <drogon/drogon_test.h>
+#include <trantor/utils/Logger.h>
 
 #include <drogon_onebot/onebot_client.hpp>
 
@@ -17,6 +21,42 @@ namespace {
 
     constexpr char const* TOKEN_ENV{ "DROGON_ONEBOT_TEST_TOKEN" }; ///< Variable that the access token tests set.
     constexpr char const* UNSET_ENV{ "DROGON_ONEBOT_TEST_UNSET" }; ///< Variable that no test sets.
+
+    /**
+     * @brief Collect what trantor logs while this object lives, instead of printing it.
+     *
+     * trantor writes each line synchronously on the logging thread, here the test thread.
+     */
+    class LogCapture {
+    private:
+        std::string m_text; ///< Every line logged since construction.
+
+    public:
+        /**
+         * @brief Send trantor's log output into this object.
+         */
+        LogCapture() {
+            trantor::Logger::setOutputFunction([this](char const* msg, std::uint64_t len) { m_text.append(msg, static_cast<std::size_t>(len)); }, [] {});
+        }
+
+        /**
+         * @brief Send trantor's log output to standard output again, as by default.
+         */
+        ~LogCapture() {
+            trantor::Logger::setOutputFunction([](char const* msg, std::uint64_t len) { std::fwrite(msg, 1, static_cast<std::size_t>(len), stdout); }, [] { std::fflush(stdout); });
+        }
+
+        LogCapture(LogCapture const&) = delete;
+        auto operator=(LogCapture const&) -> LogCapture& = delete;
+
+        /**
+         * @brief Return what was logged.
+         * @return Every line logged since construction.
+         */
+        [[nodiscard]] auto Text() const -> std::string const& {
+            return m_text;
+        }
+    };
 
     /**
      * @brief Build a plugin config that has only `base_url`.
@@ -41,6 +81,18 @@ namespace {
             return e.what();
         }
         return "(accepted)";
+    }
+
+    /**
+     * @brief Initialize a new plugin with `config` and collect what it logs.
+     * @param config Valid plugin config to pass to `initAndStart`.
+     * @return The log lines of `initAndStart`.
+     */
+    auto init_log(Json::Value const& config) -> std::string {
+        LogCapture log{};
+        drogon_onebot::OneBotClient plugin{};
+        plugin.initAndStart(config);
+        return log.Text();
     }
 
 } // namespace
@@ -99,6 +151,19 @@ DROGON_TEST(RejectsRelativeEventPath) {
     auto config{ minimal_config() };
     config["event_path"] = "onebot/event";
     CHECK(rejection(config).contains("event_path must start with /"));
+}
+
+DROGON_TEST(WarnsAboutUnsignedEventRoute) {
+    auto config{ minimal_config() };
+    CHECK(!init_log(config).contains("unsigned"));
+
+    config["event_path"] = test_support::EVENT_PATH;
+    CHECK(init_log(config).contains("event_path /onebot/event accepts unsigned events"));
+
+    test_support::set_env(test_support::SECRET_ENV, test_support::SECRET);
+    config["secret_env"] = test_support::SECRET_ENV;
+    CHECK(!init_log(config).contains("unsigned"));
+    test_support::unset_env(test_support::SECRET_ENV);
 }
 
 DROGON_TEST(AcceptsTrackedConfigJson) {

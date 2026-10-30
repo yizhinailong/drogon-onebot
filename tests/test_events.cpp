@@ -49,6 +49,7 @@ namespace {
     test_support::Inbox<drogon_onebot::NoticeEvent> g_notices;                                      ///< Every notice event.
     test_support::Inbox<drogon_onebot::RequestEvent> g_requests;                                    ///< Every request event.
     test_support::Inbox<drogon_onebot::MetaEvent> g_meta_events;                                    ///< Every meta event.
+    test_support::Inbox<drogon_onebot::MessageEvent> g_late_messages;                               ///< Message events from a handler added after the listeners started, which must stay empty.
 
     /**
      * @brief Compute HMAC-SHA1 (RFC 2104) as hex, independently of the library's private copy.
@@ -646,6 +647,18 @@ DROGON_TEST(AnswersBeforeSlowHandlerFinishes) {
     auto const slow{ g_slow_messages.Pop(test_support::EVENT_WAIT) };
     REQUIRE(slow.has_value());
     CHECK(slow->raw_message == SLOW_MARKER);
+}
+
+DROGON_TEST(DropsHandlerAddedAfterListenersStart) {
+    drogon::app().getPlugin<drogon_onebot::OneBotClient>()->OnMessage([](drogon_onebot::MessageEvent event) -> drogon::Task<> {
+        g_late_messages.Push(std::move(event));
+        co_return;
+    });
+    CHECK(post_signed(private_message("late"))->getStatusCode() == drogon::k204NoContent);
+    auto const event{ g_messages.Pop(test_support::EVENT_WAIT) };
+    REQUIRE(event.has_value());
+    CHECK(event->raw_message == "late");
+    CHECK(!g_late_messages.Pop(test_support::NO_EVENT_WAIT).has_value());
 }
 
 auto main(int argc, char** argv) -> int {
