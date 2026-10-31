@@ -249,3 +249,7 @@ New C++ code follows the `cpp-style-ref` skill (CMake + vcpkg variant). Drogon's
 Format with `clang-format -i <files>` (root `.clang-format`). Check with `clang-format --dry-run -Werror <files>`. clang-format regroups includes: in `src/actions/*.cpp`, `drogon_onebot/onebot_client.hpp` is not treated as the main header, so it sorts after `details/...`.
 
 `.clang-format` sets `LineEnding: LF`, so the dry run flags every line of a CRLF file. `.gitattributes` (`* text=auto eol=lf`) overrides `core.autocrlf` and checks every file out with LF, Windows included. A working tree from before `.gitattributes` keeps its CRLF files until they are converted or checked out again.
+
+### HTTP observers
+
+`NewOneBotClient(HttpTraceCallback)` observes HTTP action attempts without changing the no-argument factory. Each owned trace contains method, URL, status, elapsed milliseconds, and at most 64 KiB of each body prefix at a UTF-8 boundary. Headers are omitted and configured access tokens are redacted. Callbacks run on the request loop, may run concurrently, and must not block; callback exceptions are ignored. Reverse WebSocket actions produce no HTTP trace. `test_actions` covers successful and failed attempts, timeout, redaction, truncation, and exception isolation.
