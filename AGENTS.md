@@ -253,3 +253,7 @@ Format with `clang-format -i <files>` (root `.clang-format`). Check with `clang-
 ### HTTP observers
 
 `NewOneBotClient(HttpTraceCallback)` observes HTTP action attempts without changing the no-argument factory. Each owned trace contains method, URL, status, elapsed milliseconds, and at most 64 KiB of each body prefix at a UTF-8 boundary. Headers are omitted and configured access tokens are redacted. Callbacks run on the request loop, may run concurrently, and must not block; callback exceptions are ignored. Reverse WebSocket actions produce no HTTP trace. `test_actions` covers successful and failed attempts, timeout, redaction, truncation, and exception isolation.
+
+### NapCat favourites
+
+`types/napcat.hpp` and `actions/napcat.cpp` provide `FetchCustomFaceDetail`, `AddCustomFace`, `DeleteCustomFace`, and `SetCustomFaceDesc`. The list reader normalizes native `emoId` (or `emojiId`) to text, requires `resId`, and retains `raw`. Mutations return the native raw result. `AddCustomFace.file` is an existing NapCat-host path, not a bot-host upload or URL. `test_napcat` checks payload omission, explicit false values, identifiers, raw metadata, malformed entries, and action errors against an offline HTTP fake.
