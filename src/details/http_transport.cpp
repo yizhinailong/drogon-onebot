@@ -4,6 +4,8 @@
  */
 #include "details/http_transport.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <format>
 #include <string_view>
 #include <tuple>
@@ -12,6 +14,28 @@
 #include <drogon/HttpClient.h>
 
 namespace {
+
+    /**
+     * @brief Retain a UTF-8 prefix and redact the configured credential from diagnostics.
+     * @param text Original request or response text.
+     * @param secret Credential to remove when nonempty.
+     * @return At most 64 KiB without a partial trailing UTF-8 code point.
+     */
+    auto trace_prefix(std::string_view text, std::string const& secret) -> std::string {
+        auto size{ (std::min)(text.size(), std::size_t{ 65536 }) };
+        while (size < text.size() && size > 0 && (static_cast<unsigned char>(text[size]) & 0xc0) == 0x80) {
+            --size;
+        }
+        std::string result{ text.substr(0, size) };
+        if (!secret.empty()) {
+            std::size_t offset{};
+            while ((offset = result.find(secret, offset)) != std::string::npos) {
+                result.replace(offset, secret.size(), "[redacted]");
+                offset += 10;
+            }
+        }
+        return result;
+    }
 
     /**
      * @brief Split a base URL into the host part for HttpClient and the path prefix.
@@ -84,15 +108,40 @@ namespace drogon_onebot::details {
         // Keep the client in the coroutine frame until the response arrives.
         auto const client{ drogon::HttpClient::newHttpClient(m_host, current_loop()) };
         drogon::HttpResponsePtr response{};
+        auto const trace_start{ std::chrono::steady_clock::now() };
+        auto const observe{ [&](std::string error) {
+            if (!m_config.http_trace) {
+                return;
+            }
+            auto const response_body{ response != nullptr ? std::string{ response->body() } : std::string{} };
+            HttpTrace trace{
+                .method = "POST",
+                .url = m_host + request->path(),
+                .status_code = response != nullptr ? static_cast<int>(response->statusCode()) : 0,
+                .elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - trace_start).count(),
+                .request_body = trace_prefix(request->body(), m_config.access_token),
+                .response_body = trace_prefix(response_body, m_config.access_token),
+                .error = std::move(error),
+                .request_truncated = request->body().size() > 65536,
+                .response_truncated = response_body.size() > 65536,
+            };
+            try {
+                m_config.http_trace(trace);
+            } catch (...) {
+                // Diagnostics must not alter action success or failure.
+            }
+        } };
         try {
             response = co_await client->sendRequestCoro(request, timeout);
         } catch (drogon::HttpException const& e) {
+            observe(e.what());
             co_return std::unexpected{ Error{
                 .kind = e.code() == drogon::ReqResult::Timeout ? ErrorKind::Timeout : ErrorKind::Connection,
                 .message = std::format("POST {}/{}: {}", m_config.base_url, action, e.what()),
             } };
         }
 
+        observe("");
         auto const status{ static_cast<int>(response->getStatusCode()) };
         if (status < 200 || status >= 300) {
             co_return std::unexpected{ Error{

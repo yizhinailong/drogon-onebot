@@ -180,15 +180,26 @@ namespace drogon_onebot {
     }
 
     /**
+     * @brief Create a OneBot client without an HTTP observer.
+     * @return Configured client; call only after plugin initialization.
+     */
+    auto OneBotClient::NewOneBotClient() const -> OneBot {
+        return NewOneBotClient({});
+    }
+
+    /**
      * @brief Create a `OneBot` client for the configured endpoint.
+     * @param http_trace Optional observer for HTTP attempts; unused by reverse WebSocket.
      * @return A new client for the HTTP API at `base_url`, or for the reverse
      * WebSocket without one; call only after drogon has initialized the plugin.
      */
-    auto OneBotClient::NewOneBotClient() const -> OneBot {
+    auto OneBotClient::NewOneBotClient(HttpTraceCallback http_trace) const -> OneBot {
         if (m_config.base_url.empty()) {
             return OneBot{ m_reverse_ws };
         }
-        return OneBot{ m_config };
+        auto config{ m_config };
+        config.http_trace = std::move(http_trace);
+        return OneBot{ std::move(config) };
     }
 
     /**

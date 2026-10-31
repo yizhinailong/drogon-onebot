@@ -14,6 +14,7 @@
 #include <json/value.h>
 
 #include "drogon_onebot/error.hpp"
+#include "drogon_onebot/http_trace.hpp"
 #include "drogon_onebot/types/account.hpp"
 #include "drogon_onebot/types/action.hpp"
 #include "drogon_onebot/types/credential.hpp"
@@ -40,11 +41,12 @@ namespace drogon_onebot {
      * The plugin reads them from its `config` object.
      */
     struct OneBotConfig {
-        std::string base_url;     ///< HTTP API base URL of the OneBot v11 implementation, e.g. `http://127.0.0.1:3000`; may carry a path prefix. Empty sends actions over the reverse WebSocket instead.
-        std::string access_token; ///< Access token from the `access_token_env` variable, sent to the HTTP API and required from reverse WebSocket connections; empty without it.
-        std::string event_path;   ///< Path of the route that receives posted events, e.g. `/onebot/event`; empty registers no route.
-        std::string secret;       ///< Secret from the `secret_env` variable that signs posted events; empty accepts unsigned events.
-        std::string ws_path;      ///< Path of the reverse WebSocket route that the implementation connects to, e.g. `/onebot/ws`; empty registers no route.
+        std::string base_url;           ///< HTTP API base URL of the OneBot v11 implementation, e.g. `http://127.0.0.1:3000`; may carry a path prefix. Empty sends actions over the reverse WebSocket instead.
+        std::string access_token;       ///< Access token from the `access_token_env` variable, sent to the HTTP API and required from reverse WebSocket connections; empty without it.
+        std::string event_path;         ///< Path of the route that receives posted events, e.g. `/onebot/event`; empty registers no route.
+        std::string secret;             ///< Secret from the `secret_env` variable that signs posted events; empty accepts unsigned events.
+        std::string ws_path;            ///< Path of the reverse WebSocket route that the implementation connects to, e.g. `/onebot/ws`; empty registers no route.
+        HttpTraceCallback http_trace{}; ///< Programmatic HTTP observer; reverse WebSocket actions emit no HTTP trace.
     };
 
     /**
@@ -592,11 +594,18 @@ namespace drogon_onebot {
         [[nodiscard]] auto Config() const noexcept -> OneBotConfig const&;
 
         /**
+         * @brief Create a OneBot client without an HTTP observer.
+         * @return Configured client; call only after plugin initialization.
+         */
+        [[nodiscard]] auto NewOneBotClient() const -> OneBot;
+
+        /**
          * @brief Create a `OneBot` client for the configured endpoint.
+         * @param http_trace Optional observer for HTTP attempts; unused by reverse WebSocket.
          * @return A new client for the HTTP API at `base_url`, or for the reverse
          * WebSocket without one; call only after drogon has initialized the plugin.
          */
-        [[nodiscard]] auto NewOneBotClient() const -> OneBot;
+        [[nodiscard]] auto NewOneBotClient(HttpTraceCallback http_trace) const -> OneBot;
 
         /**
          * @brief Run `handler` for every message event that arrives on `event_path` or `ws_path`.

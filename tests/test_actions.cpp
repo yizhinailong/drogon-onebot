@@ -10,6 +10,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include <drogon/drogon.h>
 #include <drogon/drogon_test.h>
@@ -949,6 +950,38 @@ namespace {
      */
     auto plugin_bot() -> drogon_onebot::OneBot {
         return drogon::app().getPlugin<drogon_onebot::OneBotClient>()->NewOneBotClient();
+    }
+
+    DROGON_TEST(HttpTraceCapturesSuccessFailuresAndBoundedBodies) {
+        std::vector<drogon_onebot::HttpTrace> traces{};
+        drogon_onebot::OneBot bot{ {
+            .base_url = test_support::SERVER_URL,
+            .access_token = "trace-secret",
+            .http_trace = [&](drogon_onebot::HttpTrace const& trace) { traces.push_back(trace); },
+        } };
+        Json::Value params{};
+        params["marker"] = "hello";
+        REQUIRE(drogon::sync_wait(bot.CallAction({ .action = "echo", .params = params })).has_value());
+        REQUIRE(traces.size() == 1);
+        CHECK(traces[0].method == "POST");
+        CHECK(traces[0].url.ends_with("/echo"));
+        CHECK(traces[0].status_code == 200);
+        CHECK(traces[0].elapsed_ms >= 0);
+        CHECK(traces[0].request_body.contains("hello"));
+        CHECK(!traces[0].response_body.contains("trace-secret"));
+        REQUIRE(!drogon::sync_wait(bot.CallAction({ .action = "forbidden" })).has_value());
+        CHECK(traces.back().status_code == 403);
+        REQUIRE(!drogon::sync_wait(bot.CallAction({ .action = "slow", .timeout = 0.05 })).has_value());
+        CHECK(traces.back().status_code == 0);
+        CHECK(!traces.back().error.empty());
+        params["marker"] = std::string(70000, 'x');
+        REQUIRE(drogon::sync_wait(bot.CallAction({ .action = "echo", .params = params })).has_value());
+        CHECK(traces.back().request_truncated);
+        CHECK(traces.back().response_truncated);
+        CHECK(traces.back().request_body.size() <= 65536);
+        CHECK(traces.back().response_body.size() <= 65536);
+        auto observed{ drogon::app().getPlugin<drogon_onebot::OneBotClient>()->NewOneBotClient([](drogon_onebot::HttpTrace const&) { throw std::runtime_error{ "ignored observer" }; }) };
+        CHECK(drogon::sync_wait(observed.GetLoginInfo()).has_value());
     }
 
     /**

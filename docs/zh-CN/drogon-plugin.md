@@ -439,3 +439,11 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 | `test_events_unsigned` | 去掉 `secret_env` 的事件路由：接受无签名事件，忽略任意 `X-Signature`。 |
 | `test_reverse_ws` | 假的 NapCat 按 NapCat WebSocket 客户端的方式连接 `ws_path`，config.json 去掉 `base_url` 后加载。握手的 400、401、403 拒绝；连接上各类事件的分发；丢弃坏消息而连接保持打开；通过连接调用类型化动作和原始动作，乱序响应按 `echo` 匹配；带 WebSocket retcode 的 `Action` 错误，以及格式不对的响应；超时；没有连接；调用等待期间连接关闭或被替换；超过 drogon 默认 128 KiB 限制的响应；消息回调通过连接回复并在自己的 loop 上恢复。 |
 | `test_segments` | 不启动 app：每个 `MessageSegment` 函数构造的消息段，包括以字符串发送的 ID，以及混合构造和手写消息段的消息。 |
+
+## HTTP 请求观察
+
+应用可通过 `OneBotConfig::http_trace or OneBotClient::NewOneBotClient(callback)` 注册回调。每次出站 HTTP 尝试结束后，回调收到拥有数据的 `HttpTrace`，包括非 2xx 响应和连接失败。回调在请求所在的事件循环上执行，不应阻塞；并发请求可能并发调用它。回调异常会被忽略，不改变请求结果或重试行为。
+
+记录包含方法、URL、HTTP 状态（连接失败为 0）、耗时毫秒数、错误摘要以及有界的请求/响应正文。正文最多保留 64 KiB，附带截断标志，并保留完整的 UTF-8 前缀。记录不含 Authorization 头，正文中的已配置 bearer 凭据也会被隐藏。应用在公开诊断数据前还应去除业务正文中的其他密钥和图片。回调只允许通过代码设置，不从 config.json 读取。
+
+反向 WebSocket 动作不产生 HTTP 记录，原有的无参数工厂方法继续保留。离线回归测试位于 `test_actions`。

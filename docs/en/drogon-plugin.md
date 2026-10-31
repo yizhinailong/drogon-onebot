@@ -439,3 +439,11 @@ All tests run offline. The tests that need a server use the same app as a stand-
 | `test_events_unsigned` | The event route without `secret_env`: unsigned events are accepted, and any `X-Signature` is ignored. |
 | `test_reverse_ws` | A fake NapCat that connects to `ws_path` the way NapCat's WebSocket client does, with config.json loaded without `base_url`. The 400, 401, and 403 handshake rejections; events of each kind over the connection; bad messages dropped while the connection stays open; typed and raw actions over the connection, with responses matched by `echo` out of order; `Action` errors with a WebSocket retcode, and malformed responses; timeouts; no connection; a call pending while the connection closes or is replaced; a response above drogon's default limit of 128 KiB; and a message callback that replies over the connection and resumes on its own loop. |
 | `test_segments` | Without starting the app: the segments that each `MessageSegment` function builds, including IDs sent as strings, and a message that mixes built and hand-written segments. |
+
+## HTTP request observation
+
+Applications can set `OneBotConfig::http_trace or OneBotClient::NewOneBotClient(callback)` to receive an owned `HttpTrace` after every outgoing HTTP attempt, including non-2xx responses and transport failures. The callback runs on the request loop and must not block; concurrent requests may call it concurrently. Observer exceptions are ignored and never change request results or retries.
+
+Records contain the method, URL, HTTP status (zero for a connection failure), elapsed milliseconds, error text, and bounded request/response text. Bodies retain at most 64 KiB with truncation flags and UTF-8 prefix boundaries. Authorization headers are excluded, and the configured bearer credential is redacted from retained text. Applications must additionally redact their own payload secrets and images before exposing diagnostics. The observer is programmatic and is never accepted from config.json.
+
+Reverse WebSocket actions do not emit HTTP records. The original no-argument factory remains available. Offline regression coverage is in `test_actions`.
