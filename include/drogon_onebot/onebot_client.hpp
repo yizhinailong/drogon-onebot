@@ -22,6 +22,7 @@
 #include "drogon_onebot/types/file.hpp"
 #include "drogon_onebot/types/group.hpp"
 #include "drogon_onebot/types/message.hpp"
+#include "drogon_onebot/types/napcat.hpp"
 #include "drogon_onebot/types/request.hpp"
 #include "drogon_onebot/types/system.hpp"
 
@@ -494,6 +495,42 @@ namespace drogon_onebot {
         [[nodiscard]] auto CleanCache(
             CleanCacheParams params = {}
         ) const -> drogon::Task<Result<void>>;
+
+        /**
+         * @brief Call NapCat's `fetch_custom_face_detail` extension.
+         * @param params Request fields, read before this returns.
+         * @return Task yielding the extension result, or why the action failed.
+         */
+        [[nodiscard]] auto FetchCustomFaceDetail(
+            FetchCustomFaceDetailParams params = {}
+        ) const -> drogon::Task<Result<std::vector<CustomFace>>>;
+
+        /**
+         * @brief Call NapCat's `add_custom_face` extension.
+         * @param params Request fields, read before this returns.
+         * @return Task yielding the extension result, or why the action failed.
+         */
+        [[nodiscard]] auto AddCustomFace(
+            AddCustomFaceParams params
+        ) const -> drogon::Task<Result<Json::Value>>;
+
+        /**
+         * @brief Call NapCat's `delete_custom_face` extension.
+         * @param params Request fields, read before this returns.
+         * @return Task yielding the extension result, or why the action failed.
+         */
+        [[nodiscard]] auto DeleteCustomFace(
+            DeleteCustomFaceParams params
+        ) const -> drogon::Task<Result<Json::Value>>;
+
+        /**
+         * @brief Call NapCat's `set_custom_face_desc` extension.
+         * @param params Request fields, read before this returns.
+         * @return Task yielding the extension result, or why the action failed.
+         */
+        [[nodiscard]] auto SetCustomFaceDesc(
+            SetCustomFaceDescParams params
+        ) const -> drogon::Task<Result<Json::Value>>;
 
     private:
         /**

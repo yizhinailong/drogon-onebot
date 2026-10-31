@@ -447,3 +447,9 @@ OneBot v11 的 HTTP API 只在请求本身有问题时返回非 200（400、401�
 记录包含方法、URL、HTTP 状态（连接失败为 0）、耗时毫秒数、错误摘要以及有界的请求/响应正文。正文最多保留 64 KiB，附带截断标志，并保留完整的 UTF-8 前缀。记录不含 Authorization 头，正文中的已配置 bearer 凭据也会被隐藏。应用在公开诊断数据前还应去除业务正文中的其他密钥和图片。回调只允许通过代码设置，不从 config.json 读取。
 
 反向 WebSocket 动作不产生 HTTP 记录，原有的无参数工厂方法继续保留。离线回归测试位于 `test_actions`。
+
+### NapCat 收藏表情
+
+`FetchCustomFaceDetail({.count = 48})` 返回类型化 `CustomFace`，完整条目保留在 `raw`。NapCat 当前把数字标识写作 `emoId`，库也接受 `emojiId`。删除使用 `res_id` 资源标识。`SetCustomFaceDesc` 发送 `emoji_id`、`res_id`、`md5` 和 `desc`；`DeleteCustomFace` 把资源标识放进 `ids`。`AddCustomFace` 接受 **NapCat 主机上** 已存在的文件路径；即使提供元数据，NapCat 仍会读取该文件的状态。这四个方法是 NapCat 扩展，不支持它们的实现会返回动作错误。修改结果保留原始 JSON，因为 NapCat 直接返回原生服务的结果。
+
+参数已对照 NapCat 的 [CustomFace 动作](https://github.com/NapNeko/NapCatQQ/blob/main/packages/napcat-onebot/action/extends/CustomFace.ts) 和 [原生消息服务](https://github.com/NapNeko/NapCatQQ/blob/main/packages/napcat-core/services/NodeIKernelMsgService.ts) 检查。

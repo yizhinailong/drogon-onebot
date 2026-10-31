@@ -447,3 +447,9 @@ Applications can set `OneBotConfig::http_trace or OneBotClient::NewOneBotClient(
 Records contain the method, URL, HTTP status (zero for a connection failure), elapsed milliseconds, error text, and bounded request/response text. Bodies retain at most 64 KiB with truncation flags and UTF-8 prefix boundaries. Authorization headers are excluded, and the configured bearer credential is redacted from retained text. Applications must additionally redact their own payload secrets and images before exposing diagnostics. The observer is programmatic and is never accepted from config.json.
 
 Reverse WebSocket actions do not emit HTTP records. The original no-argument factory remains available. Offline regression coverage is in `test_actions`.
+
+### NapCat favourite stickers
+
+`FetchCustomFaceDetail({.count = 48})` returns typed `CustomFace` entries, retaining the complete entry in `raw`. NapCat currently calls the numeric identifier `emoId`; `emojiId` is accepted too. `res_id` identifies a favourite for deletion. `SetCustomFaceDesc` sends `emoji_id`, `res_id`, `md5`, and `desc`; `DeleteCustomFace` sends resource IDs as `ids`. `AddCustomFace` takes an existing file path **on the NapCat host**; NapCat stats that path even if metadata is supplied. These four methods are NapCat extensions and an implementation without them returns an action error. Mutation results remain raw JSON because NapCat delegates them directly to its native service.
+
+The payloads were checked against NapCat's [CustomFace actions](https://github.com/NapNeko/NapCatQQ/blob/main/packages/napcat-onebot/action/extends/CustomFace.ts) and [native message service](https://github.com/NapNeko/NapCatQQ/blob/main/packages/napcat-core/services/NodeIKernelMsgService.ts).
